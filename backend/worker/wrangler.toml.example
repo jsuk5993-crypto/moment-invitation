@@ -1,0 +1,22 @@
+name = "moment-payments"
+main = "src/worker.mjs"
+compatibility_date = "2026-10-27"
+
+[vars]
+PAYMENTS_ACTIVE = "false"
+PAYMENTS_MODE = "test"
+PUBLIC_ORIGIN = "https://jsuk5993-crypto.github.io"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "moment-orders"
+database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+
+[[r2_buckets]]
+binding = "PREMIUM_ASSETS"
+bucket_name = "moment-premium-private"
+
+# ADD VIA WRANGLER SECRETS OR CLOUDFLARE DASHBOARD ONLY:
+# TOSS_CLIENT_KEY  — public key, supplied as Worker variable
+# TOSS_SECRET_KEY  — Worker secret (NEVER GitHub/public JS)
+# ADMIN_SECRET     — Worker secret for refunded-payment reconciliation
