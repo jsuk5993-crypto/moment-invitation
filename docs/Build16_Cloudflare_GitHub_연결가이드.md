@@ -13,7 +13,7 @@
 2. Workers & Pages → Create application → GitHub 선택 (화면 문구는 변경될 수 있음).
 3. 저장소 `jsuk5993-crypto/moment-invitation` 지정.
 4. 브랜치 `feat/build14-payment-test`, 프로젝트 루트 디렉터리 `worker`, Worker 이름 `moment-payments-test`.
-5. Deploy command는 `npx wrangler deploy`; 설정파일은 `worker/wrangler.toml`입니다. Build command는 비워도 됩니다.
+5. Build command는 `npm run check`를 권장합니다. Deploy command는 `npx wrangler deploy`; 설정파일은 `worker/wrangler.toml`입니다.
 6. 배포한 뒤 Cloudflare가 제공한 workers.dev 주소에 `/api/health`를 붙여 확인.
 7. `paymentsEnabled:false`면 초기 단계 성공. 결제는 여전히 비활성 상태가 정상입니다.
 8. Worker URL은 공유해도 되지만 **비밀키나 관리자키는 이 채팅·GitHub에 올리지 마세요**.
