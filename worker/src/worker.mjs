@@ -70,6 +70,10 @@ async function readJSON(req) {
   return data;
 }
 async function handle(req, env, pathname) {
+  if (pathname === '/api/health' && req.method === 'GET') {
+    // Safe public bootstrap diagnostic: never exposes credentials or purchase data.
+    return json({ok:true, service:'moment-payments', build:'16', paymentsEnabled:isEnabled(env)});
+  }
   if (pathname === '/api/config' && req.method === 'GET') {
     const enabled=isEnabled(env);
     return json({ enabled, mode: enabled ? env.PAYMENTS_MODE : 'off', amount: PRICE_KRW, currency:'KRW', clientKey: enabled ? env.TOSS_CLIENT_KEY : null });
