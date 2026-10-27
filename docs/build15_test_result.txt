@@ -1,0 +1,112 @@
+
+> moment-payment-worker@0.15.0 test
+> node --test tests/*.test.mjs
+
+TAP version 13
+# (node:1801) ExperimentalWarning: SQLite is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: D1 schema: order generated and SQL amount constraint prevents tampering
+ok 1 - D1 schema: order generated and SQL amount constraint prevents tampering
+  ---
+  duration_ms: 28.655973
+  type: 'test'
+  ...
+# Subtest: D1 integration: Toss DONE -> paid -> license -> R2 asset -> browser reload restore
+ok 2 - D1 integration: Toss DONE -> paid -> license -> R2 asset -> browser reload restore
+  ---
+  duration_ms: 7.427655
+  type: 'test'
+  ...
+# Subtest: D1 integration: failed 503/timeout confirmation recovers by querying Toss, without second charge
+ok 3 - D1 integration: failed 503/timeout confirmation recovers by querying Toss, without second charge
+  ---
+  duration_ms: 6.593981
+  type: 'test'
+  ...
+# Subtest: D1 integration: full refund revokes the license and blocks R2
+ok 4 - D1 integration: full refund revokes the license and blocks R2
+  ---
+  duration_ms: 5.560398
+  type: 'test'
+  ...
+# Subtest: D1 integration: tampered price, order, and wrong origin rejected
+ok 5 - D1 integration: tampered price, order, and wrong origin rejected
+  ---
+  duration_ms: 2.213285
+  type: 'test'
+  ...
+# Subtest: D1 integration: malformed JSON and over-limit payload return 400, never 500
+ok 6 - D1 integration: malformed JSON and over-limit payload return 400, never 500
+  ---
+  duration_ms: 1.978636
+  type: 'test'
+  ...
+# Subtest: D1 integration: simultaneous confirm requests cannot both call Toss approval
+ok 7 - D1 integration: simultaneous confirm requests cannot both call Toss approval
+  ---
+  duration_ms: 5.074022
+  type: 'test'
+  ...
+# Subtest: D1 integration: wrong Toss order or payment key does not grant access
+ok 8 - D1 integration: wrong Toss order or payment key does not grant access
+  ---
+  duration_ms: 3.138013
+  type: 'test'
+  ...
+# Subtest: D1 integration: no admin secret, invalid design and arbitrary token are denied
+ok 9 - D1 integration: no admin secret, invalid design and arbitrary token are denied
+  ---
+  duration_ms: 6.969482
+  type: 'test'
+  ...
+# Subtest: payment OFF by default; no checkout is available
+ok 10 - payment OFF by default; no checkout is available
+  ---
+  duration_ms: 28.715509
+  type: 'test'
+  ...
+# Subtest: wrong origin cannot create an order
+ok 11 - wrong origin cannot create an order
+  ---
+  duration_ms: 0.505869
+  type: 'test'
+  ...
+# Subtest: server fixes price to 9900 even when browser sends a fake amount
+ok 12 - server fixes price to 9900 even when browser sends a fake amount
+  ---
+  duration_ms: 6.411351
+  type: 'test'
+  ...
+# Subtest: no payment proof cannot unlock, and assets require paid license
+ok 13 - no payment proof cannot unlock, and assets require paid license
+  ---
+  duration_ms: 6.845784
+  type: 'test'
+  ...
+# Subtest: only verified Toss DONE approval grants license and private assets
+ok 14 - only verified Toss DONE approval grants license and private assets
+  ---
+  duration_ms: 9.2681
+  type: 'test'
+  ...
+# Subtest: Toss reports a mismatched price: no license is issued
+ok 15 - Toss reports a mismatched price: no license is issued
+  ---
+  duration_ms: 4.466793
+  type: 'test'
+  ...
+# Subtest: refunded order loses license
+ok 16 - refunded order loses license
+  ---
+  duration_ms: 2.651271
+  type: 'test'
+  ...
+1..16
+# tests 16
+# suites 0
+# pass 16
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 131.001053

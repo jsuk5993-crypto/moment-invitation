@@ -1,0 +1,21 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>MOMENT · 결제 확인</title><style>
+:root{color-scheme:light;font-family:'Apple SD Gothic Neo','Malgun Gothic',sans-serif;color:#282b33;background:#f8f5fb}body{display:grid;place-items:center;min-height:100vh;margin:0;padding:20px;box-sizing:border-box}.panel{background:white;border:1px solid #e6e2eb;border-radius:22px;max-width:500px;width:100%;box-sizing:border-box;padding:42px 30px;box-shadow:0 14px 50px #1a12300d;text-align:center}h1{font-size:26px}p{line-height:1.75;color:#666273}a{display:inline-block;margin-top:20px;border-radius:10px;padding:15px 22px;background:#453669;color:white;text-decoration:none;font-weight:700}
+</style></head><body><main class="panel"><div style="font:21px Georgia,serif;letter-spacing:.22em;color:#806e9f">MOMENT</div><h1>결제 승인 확인 중</h1><p id="result" role="status">카드 인증 이후 실제 결제 승인을 확인하고 있어요.</p><a href="../index.html">초대장 편집기로 돌아가기</a></main>
+<script src="payment-config.js"></script><script>
+(async()=>{
+ const out=document.getElementById('result');const p=new URLSearchParams(location.search);
+ const orderId=p.get('orderId'),key=p.get('paymentKey'),amount=Number(p.get('amount'));
+ const secret=orderId && sessionStorage.getItem('moment_order_'+orderId);
+ const api=String(window.MOMENT_PAYMENT_API||'').replace(/\/$/,'');
+ if(!api.startsWith('https://') || !orderId || !key || amount!==9900 || !secret){out.textContent='주문 정보를 확인할 수 없어요. 결제 완료 여부는 결제내역을 확인해 주세요.';return;}
+ try{
+  const res=await fetch(api+'/api/confirm',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({orderId,paymentKey:key,amount,checkoutSecret:secret})});
+  const result=await res.json();
+  if(!res.ok || !result.paid || !/^[a-f0-9]{64}$/.test(result.license||''))throw Error(result.message||'승인 결과를 확인하지 못했습니다.');
+  localStorage.setItem('moment_premium_receipt_v1',result.license);
+  sessionStorage.removeItem('moment_order_'+orderId);
+  history.replaceState({},'',location.pathname);
+  out.textContent='결제 승인 완료! 프리미엄 초대장으로 이동합니다.';
+  setTimeout(()=>{location.replace('../index.html?premium=active#studio4')},900);
+ }catch(e){history.replaceState({},'',location.pathname);out.textContent=(e.message||'승인 상태 확인에 실패했어요.')+' 결제가 실제로 승인됐을 수 있으니 중복 결제하지 마세요.';}
+})();</script></body></html>

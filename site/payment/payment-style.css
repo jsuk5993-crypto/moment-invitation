@@ -1,0 +1,6 @@
+.moment-checkout{margin-top:16px;padding:20px 18px;border:1px solid #e7dceb;background:#fffaff;border-radius:14px;color:#403652}
+.moment-payment-topline{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;font-weight:800;letter-spacing:.08em}.moment-payment-topline span{letter-spacing:0;color:#897493;font-weight:600}
+.moment-payment-explain{font-size:13px;line-height:1.6;margin:12px 0 14px;color:#63586e}
+.moment-checkout button{width:100%;background:#674c8c;color:#fff;border:0;border-radius:10px;font-weight:750;font-size:15px;min-height:48px;cursor:pointer}
+.moment-checkout button:disabled{background:#b6aebd;cursor:not-allowed}
+.moment-payment-status{color:#826e8d!important;font-size:12px!important;margin:12px 0 0!important}

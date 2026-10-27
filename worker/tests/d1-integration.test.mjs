@@ -1,0 +1,155 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { DatabaseSync } from 'node:sqlite';
+import worker from '../src/worker.mjs';
+
+const ORIGIN = 'https://jsuk5993-crypto.github.io';
+const schema = readFileSync(new URL('../sql/schema.sql', import.meta.url), 'utf8');
+const API='https://api.moment.test';
+const request = (path,method='GET',body,token,headers={}) => new Request(API+path, {
+  method, headers:{Origin:ORIGIN, ...(body!==undefined?{'content-type':'application/json'}:{}),...(token?{authorization:'Bearer '+token}:{}),...headers},
+  body: body===undefined ? undefined : JSON.stringify(body)
+});
+const parsed = async(resp) => ({status:resp.status, body:await resp.json()});
+function makeEnvironment() {
+  const sqlite = new DatabaseSync(':memory:');
+  sqlite.exec(schema);
+  const DB={
+    prepare(sql) { return { bind(...values) {return {
+      async first(){return sqlite.prepare(sql).get(...values)??null},
+      async run(){const result=sqlite.prepare(sql).run(...values);return {meta:{changes:result.changes}}}
+    }}}}
+  };
+  const env={ PAYMENTS_ACTIVE:'true',PAYMENTS_MODE:'test',PUBLIC_ORIGIN:ORIGIN,
+    TOSS_CLIENT_KEY:'test_gck_mock_123',TOSS_SECRET_KEY:'test_gsk_mock_123',
+    DB, PREMIUM_ASSETS:{async get(key){if(key==='premium/disco.webp')return {body:new Blob(['WEBP'],{type:'image/webp'}).stream()};return null;}},
+    ADMIN_SECRET:'integration-only-secret' };
+  return {env,sqlite};
+}
+const newOrder=async(env) => (await parsed(await worker.fetch(request('/api/orders','POST',{}),env))).body;
+const confirm=(env,o,additional={})=>worker.fetch(request('/api/confirm','POST',{orderId:o.orderId,paymentKey:'key_'+o.orderId,amount:9900,checkoutSecret:o.checkoutSecret,...additional}),env);
+const payment=(o,status='DONE',amount=9900)=>({orderId:o.orderId,paymentKey:'key_'+o.orderId,totalAmount:amount,status});
+
+// These are real SQLite constraints and SQL statements, not just a hand-written FakeDB.
+test('D1 schema: order generated and SQL amount constraint prevents tampering',async()=>{
+ const {env,sqlite}=makeEnvironment();try{
+  const o=await newOrder(env);
+  assert.equal(sqlite.prepare('SELECT amount FROM orders WHERE order_id = ?').get(o.orderId).amount,9900);
+  assert.throws(()=>sqlite.prepare('UPDATE orders SET amount = 1 WHERE order_id = ?').run(o.orderId),/CHECK constraint failed/);
+  const denied=await worker.fetch(request('/api/assets/disco'),env);
+  assert.equal(denied.status,401);
+ }finally{sqlite.close()}
+});
+
+test('D1 integration: Toss DONE -> paid -> license -> R2 asset -> browser reload restore',async()=>{
+ const {env,sqlite}=makeEnvironment();const o=await newOrder(env),oldFetch=globalThis.fetch;
+ globalThis.fetch=async(url,opts)=>{
+  assert.match(String(url),/\/payments\/confirm$/);
+  assert.equal(JSON.parse(opts.body).amount,9900);
+  assert.match(opts.headers['idempotency-key'],/^moment-MOMENT_/);
+  return Response.json(payment(o));
+ };
+ try{
+  const done=await parsed(await confirm(env,o));assert.equal(done.status,200);
+  assert.equal(done.body.paid,true);assert.match(done.body.license,/^[a-f0-9]{64}$/);
+  const order=sqlite.prepare('SELECT status,license_hash,payment_key FROM orders WHERE order_id = ?').get(o.orderId);
+  assert.equal(order.status,'paid');assert.notEqual(order.license_hash,done.body.license);
+  const license=await parsed(await worker.fetch(request('/api/license','GET',undefined,done.body.license),env));
+  assert.equal(license.body.active,true);assert.equal(license.body.designs.length,6);
+  const img=await worker.fetch(request('/api/assets/disco','GET',undefined,done.body.license),env);
+  assert.equal(img.status,200);assert.equal(await img.text(),'WEBP');
+  // A token stored in localStorage is enough to restore without a new payment.
+  assert.equal((await worker.fetch(request('/api/license','GET',undefined,done.body.license),env)).status,200);
+ }finally{globalThis.fetch=oldFetch;sqlite.close()}
+});
+
+test('D1 integration: failed 503/timeout confirmation recovers by querying Toss, without second charge',async()=>{
+ const {env,sqlite}=makeEnvironment();const o=await newOrder(env),oldFetch=globalThis.fetch;let confirmCount=0;
+ globalThis.fetch=async(url)=>{
+  if(String(url).endsWith('/confirm')){confirmCount++;return Response.json({error:'GATEWAY_TIMEOUT'},{status:503});}
+  return Response.json(payment(o,'IN_PROGRESS'));
+ };
+ try{
+  const pending=await parsed(await confirm(env,o));assert.equal(pending.status,502);
+  assert.equal(sqlite.prepare('SELECT status FROM orders WHERE order_id = ?').get(o.orderId).status,'confirming');
+  // Network recovered, Toss now reports actual final state. Retry must only GET.
+  globalThis.fetch=async(url)=>{assert.equal(String(url).includes('/confirm'),false);return Response.json(payment(o));};
+  const done=await parsed(await confirm(env,o));assert.equal(done.status,200);assert.equal(done.body.paid,true);
+  assert.equal(confirmCount,1);
+ }finally{globalThis.fetch=oldFetch;sqlite.close()}
+});
+
+test('D1 integration: full refund revokes the license and blocks R2',async()=>{
+ const {env,sqlite}=makeEnvironment(),o=await newOrder(env),oldFetch=globalThis.fetch;
+ globalThis.fetch=async()=>Response.json(payment(o));
+ try{
+  const done=await parsed(await confirm(env,o));
+  assert.equal(done.status,200);
+  globalThis.fetch=async()=>Response.json(payment(o,'CANCELED'));
+  const result=await parsed(await worker.fetch(request('/api/toss-webhook','POST',{eventType:'PAYMENT_STATUS_CHANGED',data:{orderId:o.orderId,paymentKey:'key_'+o.orderId}}),env));
+  assert.equal(result.status,200);
+  assert.equal(sqlite.prepare('SELECT status FROM orders WHERE order_id = ?').get(o.orderId).status,'refunded');
+  assert.equal((await worker.fetch(request('/api/license','GET',undefined,done.body.license),env)).status,401);
+  assert.equal((await worker.fetch(request('/api/assets/disco','GET',undefined,done.body.license),env)).status,401);
+ }finally{globalThis.fetch=oldFetch;sqlite.close()}
+});
+
+test('D1 integration: tampered price, order, and wrong origin rejected',async()=>{
+ const {env,sqlite}=makeEnvironment();try{
+  const o=await newOrder(env);
+  assert.equal((await confirm(env,o,{amount:1})).status,400);
+  assert.equal((await confirm(env,o,{checkoutSecret:'0'.repeat(64)})).status,403);
+  assert.equal((await worker.fetch(request('/api/orders','POST',{},undefined,{Origin:'https://evil.invalid'}),env)).status,403);
+  assert.equal(sqlite.prepare('SELECT status FROM orders WHERE order_id = ?').get(o.orderId).status,'created');
+ }finally{sqlite.close()}
+});
+
+test('D1 integration: malformed JSON and over-limit payload return 400, never 500',async()=>{
+ const {env,sqlite}=makeEnvironment();try{
+  const malformed=new Request(API+'/api/orders',{method:'POST',headers:{Origin:ORIGIN,'content-type':'application/json'},body:'{oops'});
+  assert.equal((await worker.fetch(malformed,env)).status,400);
+  const tooLong=await worker.fetch(request('/api/orders','POST',{payload:'x'.repeat(8500)}),env);
+  assert.equal(tooLong.status,400);
+  const wrongType=new Request(API+'/api/orders',{method:'POST',headers:{Origin:ORIGIN,'content-type':'text/plain'},body:'hello'});
+  assert.equal((await worker.fetch(wrongType,env)).status,400);
+ }finally{sqlite.close()}
+});
+
+test('D1 integration: simultaneous confirm requests cannot both call Toss approval',async()=>{
+ const {env,sqlite}=makeEnvironment(),o=await newOrder(env),oldFetch=globalThis.fetch;
+ let release;let count=0;const gate=new Promise(resolve=>release=resolve);
+ globalThis.fetch=async(url)=>{
+   if(String(url).endsWith('/confirm')){count++;await gate;return Response.json(payment(o));}
+   return Response.json(payment(o,'IN_PROGRESS'));
+ };
+ try{
+  const first=confirm(env,o);
+  // Let the first request reach and claim confirming state before racing a second one.
+  for(let i=0;i<15&&count===0;i++)await new Promise(r=>setTimeout(r,2));
+  assert.equal(count,1);
+  const second=await parsed(await confirm(env,o));assert.equal(second.status,409);
+  release();const done=await parsed(await first);assert.equal(done.status,200);
+  assert.equal(count,1);
+ }finally{release?.();globalThis.fetch=oldFetch;sqlite.close()}
+});
+
+test('D1 integration: wrong Toss order or payment key does not grant access',async()=>{
+ const {env,sqlite}=makeEnvironment(),o=await newOrder(env),oldFetch=globalThis.fetch;
+ globalThis.fetch=async(url)=>Response.json({...payment(o),orderId:'OTHER_ORDER'});
+ try{
+  const result=await parsed(await confirm(env,o));assert.equal(result.status,502);
+  assert.notEqual(sqlite.prepare('SELECT status FROM orders WHERE order_id=?').get(o.orderId).status,'paid');
+ }finally{globalThis.fetch=oldFetch;sqlite.close()}
+});
+
+test('D1 integration: no admin secret, invalid design and arbitrary token are denied',async()=>{
+ const {env,sqlite}=makeEnvironment(),o=await newOrder(env),oldFetch=globalThis.fetch;
+ globalThis.fetch=async()=>Response.json(payment(o));
+ try{
+  const paid=await parsed(await confirm(env,o));
+  assert.equal((await worker.fetch(request('/api/assets/arbitrary','GET',undefined,paid.body.license),env)).status,404);
+  assert.equal((await worker.fetch(request('/api/license','GET',undefined,'a'.repeat(64)),env)).status,401);
+  assert.equal((await worker.fetch(request('/api/reconcile','POST',{orderId:o.orderId}),env)).status,403);
+ }finally{globalThis.fetch=oldFetch;sqlite.close()}
+});
