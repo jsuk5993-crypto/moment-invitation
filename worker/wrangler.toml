@@ -1,0 +1,15 @@
+# Cloudflare Workers Builds — safe FIRST deployment.
+# Keep checkout switched OFF until Toss TEST keys, D1 and private R2 are connected.
+# Connect GitHub on the feat/build14-payment-test branch, project root /worker.
+name = "moment-payments-test"
+main = "src/worker.mjs"
+compatibility_date = "2026-10-28"
+
+[vars]
+PAYMENTS_ACTIVE = "false"
+PAYMENTS_MODE = "test"
+PUBLIC_ORIGIN = "https://jsuk5993-crypto.github.io"
+
+# DO NOT put D1/R2 bindings here until those resources exist.
+# See wrangler.toml.example for the full config requiring account-specific IDs.
+# Never write TOSS_SECRET_KEY or ADMIN_SECRET in this public file.
