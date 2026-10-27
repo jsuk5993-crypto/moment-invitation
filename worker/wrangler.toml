@@ -3,7 +3,7 @@
 # Connect GitHub on the feat/build14-payment-test branch, project root /worker.
 name = "moment-payments-test"
 main = "src/worker.mjs"
-compatibility_date = "2026-10-28"
+compatibility_date = "2026-10-20"
 
 [vars]
 PAYMENTS_ACTIVE = "false"
