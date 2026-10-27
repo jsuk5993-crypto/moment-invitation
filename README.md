@@ -1,33 +1,18 @@
-# MOMENT Build 15 — 결제 연결 전 통합 검수 완료
+# MOMENT — 프리미엄 초대장 · Build 16 결제 테스트 준비
 
-> **주의:** 이 버전은 판매·과금 가능 상태가 아닙니다. 테스트용 Worker가 실제로 배포되지 않았고, 토스페이먼츠 키를 연결하지 않았습니다. 공개 사이트 Build 13.2는 변경하지 않습니다.
+공개 사이트는 안정적으로 Build 13.2를 유지합니다. 이 개발 브랜치는 **결제 비활성**이며 실제 카드 청구는 불가능합니다.
 
-## 개선 내용
+## 개발 브랜치 핵심 파일
+- `site/index.html` · 기존 초대장/오시는 길 편집기와 결제 UI 테스트판
+- `site/payment/` · 토스페이먼츠 결제 리다이렉트/권한복원 처리
+- `worker/src/worker.mjs` · 결제 승인 서버, D1 주문 DB, 비공개 R2 이미지 검증
+- `worker/wrangler.toml` · Cloudflare 최초 테스트 배포용 **PAYMENTS_ACTIVE=false**
+- `worker/tests/` · 전체 19개 서버/DB 테스트
+- `docs/Build16_Cloudflare_GitHub_연결가이드.md` · Node.js 설치 없이 GitHub→Cloudflare 연결 가이드
 
-- 기존 Build 14 결제 프런트/Worker/D1/R2 코드 유지
-- JSON 본문 크기 제한을 Content-Length에만 의존하지 않고 **실제 수신 크기 8KB** 기준으로 검증
-- 잘못된 JSON 요청을 서버 오류(500)가 아닌 사용자 요청 오류(400)로 반환
-- 결제 조회를 통한 관리자인증/환불 확인 경로에 결제키 비교 추가
-- 가짜 D1이 아닌 **실제 SQLite 스키마**를 이용한 9개 통합 검수 시나리오 추가
-- 기존 7개 테스트 포함 총 **16개 검사 통과**
-- 실제 결제 테스트에 필요한 설정 순서/비밀키 관리/남은 위험 문서화
+## 안전한 최초 서버 배포
+Cloudflare Workers Builds를 통해 이 브랜치를 연결하고 **Root directory = worker**, **Worker name = moment-payments-test**, **Build command = npm run check**, **Deploy command = npx wrangler deploy**로 지정합니다.
 
-## 경로
+배포 후 `https://[받은 Worker 주소]/api/health`에서 `paymentsEnabled:false`면 정상입니다.
 
-```
-site/index.html                       고객 UI · 결제 비활성 개발판
-site/payment/*                        결제창·승인 리다이렉트·복원 UI
-worker/src/worker.mjs                 9,900원 금액 검증·권한 발급 Worker
-worker/sql/schema.sql                 D1 저장소 스키마
-worker/tests/worker.test.mjs          7개 단위/가짜 DB 테스트
-worker/tests/d1-integration.test.mjs  9개 실제 SQLite 통합 테스트
-worker/package.json                  npm test / npm run check
-worker/wrangler.toml.example          배포 템플릿 (시크릿 없음)
-docs/Build15_결제테스트_설정가이드.md   계정 설정·클라우드 연결 설명
-```
-
-## 오프라인 검수
-
-Node.js 22 이상에서 `cd worker` 후 `npm test` 또는 `node --test worker/tests/*.test.mjs`.
-
-**중요:** 이 ZIP 안에는 상품 원본 6종이 없습니다. 원본은 이전 단계의 별도 **비공개 R2 업로드용 ZIP**을 사용해야 합니다.
+**절대로 토스 시크릿키, 관리자키, 프리미엄 원본 이미지를 GitHub에 올리지 마세요.** 실제 결제 개방에는 토스페이먼츠 개발자 계정 및 Cloudflare D1/R2 연결과 추가 결제 검수가 필요합니다.
