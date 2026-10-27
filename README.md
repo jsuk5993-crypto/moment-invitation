@@ -16,3 +16,6 @@ Cloudflare Workers Builds를 통해 이 브랜치를 연결하고 **Root directo
 배포 후 `https://[받은 Worker 주소]/api/health`에서 `paymentsEnabled:false`면 정상입니다.
 
 **절대로 토스 시크릿키, 관리자키, 프리미엄 원본 이미지를 GitHub에 올리지 마세요.** 실제 결제 개방에는 토스페이먼츠 개발자 계정 및 Cloudflare D1/R2 연결과 추가 결제 검수가 필요합니다.
+
+## Cloudflare 재배포 트리거
+2026-10-28: `moment-payments-test`의 프로덕션 브랜치를 `feat/build14-payment-test`로 설정한 후 새 빌드를 실행하기 위한 문서 커밋입니다. `PAYMENTS_ACTIVE=false` 상태를 유지합니다.
