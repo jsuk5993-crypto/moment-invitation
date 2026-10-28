@@ -63,7 +63,7 @@ function scenario({mode='test',enabled=true,storedLicense=null,licenseStatus=200
  const document={baseURI:'https://example.workers.dev/',getElementById:id=>id==='premiumActions'?note:null,
    querySelector:query,createElement:tag=>tag==='section'?panel:null};
  runInNewContext(code,{window,document,localStorage:{getItem:k=>local.get(k)||null,setItem:(k,v)=>local.set(k,v),removeItem:k=>local.delete(k)},
-   sessionStorage:{getItem:k=>session.get(k)||null,setItem:(k,v)=>session.set(k,v)},
+   sessionStorage:{getItem:k=>session.get(k)||null,setItem:(k,v)=>session.set(k,v),removeItem:k=>session.delete(k)},
    fetch,URL,Blob,crypto:webcrypto,navigator:{clipboard:{writeText:async()=>{}}}});
  return {buy,agreement,calls,orderBodies,session,plan,planTitle,badge,policy,note,local,status,
   recoveryIssue,recoveryIssueBtn,recoveryRedeem,recoveryRedeemBtn,recoveryInput,recoveryCodeBox,recoveryCodeText,recoveryBodies,recoveryStatus,

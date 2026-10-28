@@ -75,7 +75,7 @@ test('only verified Toss DONE approval grants license and private assets',async(
  const e=env(),{body}=await create(e);
  const oldFetch=globalThis.fetch;
  globalThis.fetch=async(url,opt)=>{
-  if(String(url).endsWith('/confirm'))return Response.json({status:'DONE',paymentKey:'key_dummy_'+body.orderId,orderId:body.orderId,totalAmount:9900});
+  if(String(url).endsWith('/confirm') || String(url).includes('/v1/payments/'))return Response.json({status:'DONE',paymentKey:'key_dummy_'+body.orderId,orderId:body.orderId,totalAmount:9900});
   throw Error('unexpected external fetch');
  };
  try {
