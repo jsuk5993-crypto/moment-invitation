@@ -1,4 +1,4 @@
-# MOMENT Build 24: fail-closed staging checkout, OFF pending access validation.
+# MOMENT Build 26: mandatory staging password without an optional dashboard toggle; payments OFF.
 name = "moment-payments-test"
 main = "src/worker.mjs"
 compatibility_date = "2026-10-20"
@@ -6,8 +6,8 @@ compatibility_date = "2026-10-20"
 [vars]
 PAYMENTS_ACTIVE = "false"
 PAYMENTS_MODE = "test"
-TEST_ACCESS_REQUIRED = "true"
 PUBLIC_ORIGIN = "https://jsuk5993-crypto.github.io"
+# Staging password protection is always ON in code. No TEST_ACCESS_REQUIRED variable.
 
 # Values must never be saved in GitHub or the [vars] block.
 # Wrangler validates that these encrypted Cloudflare Secrets exist before deploying.

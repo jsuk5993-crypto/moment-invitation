@@ -120,7 +120,9 @@ async function handle(req, env, pathname) {
     return json({ok:true,mode,clientKeyConfigured,secretKeyConfigured,
       orderDatabaseBound:!!env.DB,premiumStorageBound:!!env.PREMIUM_ASSETS,
       paymentSwitchActive:env.PAYMENTS_ACTIVE==='true',
-      testAccessRequired:env.TEST_ACCESS_REQUIRED==='true',
+      // Build26: this is an immutable security rule, NOT an env variable.
+      build:'26',testAccessRequired:true,
+      testAccessSecretConfigured:typeof env.TEST_ACCESS_SECRET==='string' && env.TEST_ACCESS_SECRET.length>0,
       testAccessReady:stageGateReady(env),
       publicOriginConfigured:!!env.PUBLIC_ORIGIN,
       paymentsEnabled:isEnabled(env)});
@@ -248,7 +250,7 @@ export default {
     if(req.method==='OPTIONS')return new Response(null,{status:204,headers});
     const publicChecks=new Set(['/api/health','/api/db-health','/api/r2-health','/api/payment-setup']);
     // Protected test checkout cannot be opted out via a dashboard variable override.
-    if(env.PAYMENTS_MODE==='test' && (env.PAYMENTS_ACTIVE==='true' || env.TEST_ACCESS_REQUIRED==='true') && !publicChecks.has(pathname)){
+    if(!publicChecks.has(pathname)){
       if(!stageGateReady(env))return json({error:'test_access_unconfigured'},503,headers);
       if(!(await hasStageSession(req,env)))return json({error:'test_access_required'},401,headers);
     }

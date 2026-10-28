@@ -6,7 +6,8 @@ const COOKIE_NAME='__Host-moment_stage';
 const SESSION_MS=8*60*60*1000;
 const encoder=new TextEncoder();
 const noStore={'cache-control':'no-store','x-content-type-options':'nosniff','referrer-policy':'no-referrer'};
-export const stageGateReady=env=>env.TEST_ACCESS_REQUIRED==='true' && env.PAYMENTS_MODE==='test' && typeof env.TEST_ACCESS_SECRET==='string' && env.TEST_ACCESS_SECRET.length>=24;
+// Dedicated test Worker: protection is mandatory, not controlled by an overridable dashboard toggle.
+export const stageGateReady=env=>env.PAYMENTS_MODE==='test' && typeof env.TEST_ACCESS_SECRET==='string' && env.TEST_ACCESS_SECRET.length>=24;
 const hex=bytes=>Array.from(new Uint8Array(bytes),b=>b.toString(16).padStart(2,'0')).join('');
 async function signature(secret,expiry){
  const key=await crypto.subtle.importKey('raw',encoder.encode(secret),{name:'HMAC',hash:'SHA-256'},false,['sign']);
@@ -29,7 +30,6 @@ function loginDocument(message){
 }
 function redirect(cookie){return new Response(null,{status:303,headers:{...noStore,location:'/',...(cookie?{'set-cookie':cookie}:{})}});}
 export async function handleStagingRequest(req,env,pathname){
- if(env.TEST_ACCESS_REQUIRED!=='true')return new Response('Staging site is disabled.',{status:503,headers:noStore});
  if(!stageGateReady(env))return loginDocument('unconfigured');
  if(pathname==='/__test/login' && req.method==='POST'){
   const length=Number(req.headers.get('content-length')||0);

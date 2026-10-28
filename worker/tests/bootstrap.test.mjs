@@ -82,7 +82,8 @@ test('Build19 payment readiness exposes only key-format booleans, with checkout 
  assert.equal(response.status,200);
  assert.deepEqual(await response.json(),{ok:true,mode:'test',clientKeyConfigured:true,
    secretKeyConfigured:true,orderDatabaseBound:true,premiumStorageBound:true,paymentSwitchActive:false,
-   testAccessRequired:false,testAccessReady:false,publicOriginConfigured:true,paymentsEnabled:false});
+   build:'26',testAccessRequired:true,testAccessSecretConfigured:false,
+   testAccessReady:false,publicOriginConfigured:true,paymentsEnabled:false});
  const responseText=await (await app.fetch(req('GET','/api/payment-setup'),valid)).text();
  assert.equal(responseText.includes('test_ck_example'),false);
  assert.equal(responseText.includes('test_sk_example'),false);

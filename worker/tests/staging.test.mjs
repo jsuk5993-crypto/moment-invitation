@@ -85,7 +85,7 @@ test('Build22: accidentally setting LIVE while staging never enables checkout',a
  assert.equal((await setup.json()).paymentsEnabled,false);
 });
 
-test('Build24 fail-closed: disabling stage flag cannot enable public test checkout',async()=>{
+test('Build26: removing/overriding legacy stage toggle cannot disable password protection',async()=>{
  const unsafe={...env,TEST_ACCESS_REQUIRED:'false',PAYMENTS_ACTIVE:'true',
   TOSS_CLIENT_KEY:'test_ck_demo',TOSS_SECRET_KEY:'test_sk_demo',DB:{},PREMIUM_ASSETS:{}};
  const diag=await worker.fetch(req('/api/payment-setup'),unsafe);
@@ -93,18 +93,20 @@ test('Build24 fail-closed: disabling stage flag cannot enable public test checko
  assert.equal(setup.clientKeyConfigured,true);
  assert.equal(setup.secretKeyConfigured,true);
  assert.equal(setup.paymentSwitchActive,true);
- assert.equal(setup.testAccessRequired,false);
- assert.equal(setup.testAccessReady,false);
- assert.equal(setup.paymentsEnabled,false);
+ assert.equal(setup.testAccessRequired,true);
+ assert.equal(setup.testAccessSecretConfigured,true);
+ assert.equal(setup.testAccessReady,true);
+ assert.equal(setup.paymentsEnabled,true); // Only safe because session gating always remains enforced.
  const page=await worker.fetch(req('/'),unsafe);
- assert.equal(page.status,503);
+ assert.equal(page.status,200);
+ assert.match(await page.text(),/테스트 접근 코드/);
  const cfg=await worker.fetch(req('/api/config'),unsafe);
- assert.equal(cfg.status,503);
- assert.equal((await cfg.json()).error,'test_access_unconfigured');
+ assert.equal(cfg.status,401);
+ assert.equal((await cfg.json()).error,'test_access_required');
  const order=await worker.fetch(req('/api/orders',{method:'POST',headers:{'content-type':'application/json'},body:'{}'}),unsafe);
- assert.equal(order.status,503);
+ assert.equal(order.status,401);
  const asset=await worker.fetch(req('/api/assets/disco'),unsafe);
- assert.equal(asset.status,503);
+ assert.equal(asset.status,401);
 });
 test('Build24 fail-closed: short stage secret cannot enable test payments',async()=>{
  const invalid={...env,TEST_ACCESS_SECRET:'short',PAYMENTS_ACTIVE:'true',
@@ -113,4 +115,24 @@ test('Build24 fail-closed: short stage secret cannot enable test payments',async
  assert.equal(setup.paymentsEnabled,false);
  const order=await worker.fetch(req('/api/orders',{method:'POST',headers:{'content-type':'application/json'},body:'{}'}),invalid);
  assert.equal(order.status,503);
+});
+
+test('Build26: missing legacy flag cannot affect protected test editor or signed login',async()=>{
+ const noToggle={...env,TEST_ACCESS_REQUIRED:undefined};
+ assert.equal(stageGateReady(noToggle),true);
+ const anonymous=await worker.fetch(req('/'),noToggle);
+ assert.equal(anonymous.status,200);
+ assert.match(await anonymous.text(),/테스트 접근 코드/);
+ const paidApi=await worker.fetch(req('/api/license'),noToggle);
+ assert.equal(paidApi.status,401);
+ const config=await worker.fetch(req('/api/payment-setup'),noToggle);
+ const state=await config.json();
+ assert.equal(state.build,'26');
+ assert.equal(state.testAccessRequired,true);
+ assert.equal(state.testAccessSecretConfigured,true);
+ assert.equal(state.testAccessReady,true);
+ assert.equal(state.paymentsEnabled,false);
+ const loggedIn=await worker.fetch(req('/',{headers:{cookie:await cookie()}}),noToggle);
+ assert.equal(loggedIn.status,200);
+ assert.match(await loggedIn.text(),/Test editor/);
 });
