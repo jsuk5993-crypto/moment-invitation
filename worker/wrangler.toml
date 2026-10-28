@@ -1,10 +1,10 @@
-# MOMENT Build 22: password-protected TEST checkout only; never use LIVE.
+# MOMENT Build 24: fail-closed staging checkout, OFF pending access validation.
 name = "moment-payments-test"
 main = "src/worker.mjs"
 compatibility_date = "2026-10-20"
 
 [vars]
-PAYMENTS_ACTIVE = "true"
+PAYMENTS_ACTIVE = "false"
 PAYMENTS_MODE = "test"
 TEST_ACCESS_REQUIRED = "true"
 PUBLIC_ORIGIN = "https://jsuk5993-crypto.github.io"

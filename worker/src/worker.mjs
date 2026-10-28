@@ -18,9 +18,11 @@ const keyPairReady = (env) => {
   return !!prefix && typeof env.TOSS_CLIENT_KEY === 'string' && typeof env.TOSS_SECRET_KEY === 'string'
     && env.TOSS_CLIENT_KEY.startsWith(prefix + 'ck_') && env.TOSS_SECRET_KEY.startsWith(prefix + 'sk_');
 };
-const isEnabled = (env) => env.PAYMENTS_ACTIVE === 'true' && keyPairReady(env)
-  && !!env.DB && !!env.PREMIUM_ASSETS && !!env.PUBLIC_ORIGIN
-  && (env.TEST_ACCESS_REQUIRED !== 'true' || stageGateReady(env));
+// FAIL CLOSED: this Worker is a staging-only payment server.
+ // Test checkout MUST NOT become public even when Cloudflare dashboard overrides Wrangler flags.
+const isEnabled = (env) => env.PAYMENTS_ACTIVE === 'true' && env.PAYMENTS_MODE === 'test'
+  && stageGateReady(env) && keyPairReady(env)
+  && !!env.DB && !!env.PREMIUM_ASSETS && !!env.PUBLIC_ORIGIN;
 const cors = (origin) => ({'access-control-allow-origin':origin, 'vary':'Origin', 'access-control-allow-methods':'GET,POST,OPTIONS', 'access-control-allow-headers':'content-type,authorization', 'access-control-max-age':'600'});
 class ClientInputError extends Error {}
 const errors = { disabled: '결제 연결 준비 중입니다.', invalid: '요청 정보를 확인해 주세요.', denied: '구매 권한이 확인되지 않았습니다.', unexpected: '결제 상태 확인이 지연되고 있습니다. 중복 결제하지 말고 고객센터에 문의해 주세요.' };
@@ -240,12 +242,13 @@ export default {
     const allowed=normalizeOrigin(env.PUBLIC_ORIGIN||'');
     const selfOrigin=new URL(req.url).origin;
     const siteOrigin=origin ? normalizeOrigin(origin) : '';
-    const validStagingOrigin=env.TEST_ACCESS_REQUIRED==='true' && siteOrigin===selfOrigin;
+    const validStagingOrigin=stageGateReady(env) && siteOrigin===selfOrigin;
     if (!allowed || (origin && siteOrigin !== allowed && !validStagingOrigin)) return json({error:'origin_denied'},403);
     const headers=cors(validStagingOrigin?selfOrigin:allowed);
     if(req.method==='OPTIONS')return new Response(null,{status:204,headers});
     const publicChecks=new Set(['/api/health','/api/db-health','/api/r2-health','/api/payment-setup']);
-    if(env.TEST_ACCESS_REQUIRED==='true' && !publicChecks.has(pathname)){
+    // Protected test checkout cannot be opted out via a dashboard variable override.
+    if(env.PAYMENTS_MODE==='test' && (env.PAYMENTS_ACTIVE==='true' || env.TEST_ACCESS_REQUIRED==='true') && !publicChecks.has(pathname)){
       if(!stageGateReady(env))return json({error:'test_access_unconfigured'},503,headers);
       if(!(await hasStageSession(req,env)))return json({error:'test_access_required'},401,headers);
     }
