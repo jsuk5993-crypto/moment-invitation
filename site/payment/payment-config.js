@@ -1,5 +1,5 @@
-/* This file is intentionally safe for a public GitHub Pages site.
- * Set ONLY the public worker URL after deploying the Worker. NEVER a secret key.
- * Example: window.MOMENT_PAYMENT_API = 'https://moment-payments.example.workers.dev';
+/* MOMENT payment development branch — public Cloudflare test API endpoint only.
+ * This file contains NO credentials. Live public site on main is unchanged.
+ * The checkout button stays disabled while PAYMENTS_ACTIVE=false on the server.
  */
-window.MOMENT_PAYMENT_API = '';
+window.MOMENT_PAYMENT_API = 'https://moment-payments-test.jsuk5993-1ae.workers.dev';
