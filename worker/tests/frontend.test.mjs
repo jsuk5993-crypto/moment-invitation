@@ -25,7 +25,7 @@ function scenario({mode='test',enabled=true,storedLicense=null}={}){
  const config={enabled,mode,amount:9900,currency:'KRW',clientKey:mode==='test'?'test_ck_mock':'live_ck_mock'};
  const fetch=async(url)=>{
   const path=new URL(url).pathname;
-  if(path==='/api/config')return {json:async()=>config};
+  if(path==='/api/config')return {ok:true,json:async()=>config};
   if(path==='/api/orders')return {ok:true,json:async()=>({amount:9900,orderId:'MOMENT_1234567',checkoutSecret:'a'.repeat(64)})};
   if(path==='/api/license')return {ok:true,json:async()=>({active:true})};
   if(path.startsWith('/api/assets/'))return {ok:true,blob:async()=>new Blob(['sample'],{type:'image/webp'})};
