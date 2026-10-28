@@ -44,21 +44,6 @@ async function tossQuery(env, paymentKey) {
     headers: { authorization: paymentAuth(env) }
   });
 }
-// Explicitly test-only refund. The buyer's verified paid license selects the order;
-// never accept a caller-provided paymentKey/orderId for cancellation.
-async function tossTestCancel(env, order) {
-  return fetch('https://api.tosspayments.com/v1/payments/' + encodeURIComponent(order.payment_key) + '/cancel', {
-    method: 'POST',
-    headers: { authorization: paymentAuth(env), 'content-type':'application/json',
-      'idempotency-key':'moment-test-cancel-'+order.order_id },
-    body: JSON.stringify({cancelReason:'MOMENT 비공개 테스트 결제 취소'})
-  });
-}
-function matchesTossOrder(payment,order) {
-  return payment && payment.orderId===order.order_id && payment.paymentKey===order.payment_key
-    && payment.totalAmount===PRICE_KRW;
-}
-const isTossCanceled=payment=>payment && ['CANCELED','PARTIAL_CANCELED'].includes(payment.status);
 async function issueLicense(env, orderId) {
   const token = randomSecret();
   const hash = await sha(token);
@@ -125,7 +110,7 @@ async function readJSON(req) {
 async function handle(req, env, pathname) {
   if (pathname === '/api/health' && req.method === 'GET') {
     // Safe public bootstrap diagnostic: never exposes credentials or purchase data.
-    return json({ok:true, service:'moment-payments', build:'32', paymentsEnabled:isEnabled(env)});
+    return json({ok:true, service:'moment-payments', build:'31', paymentsEnabled:isEnabled(env)});
   }
   if (pathname === '/api/db-health' && req.method === 'GET') {
     // Public read-only diagnostic. Never returns order records or credentials.
@@ -164,7 +149,7 @@ async function handle(req, env, pathname) {
       orderDatabaseBound:!!env.DB,premiumStorageBound:!!env.PREMIUM_ASSETS,
       paymentSwitchActive:env.PAYMENTS_ACTIVE==='true',
       // Build28: this is an immutable security rule, NOT an env variable.
-      build:'32',testAccessRequired:true,
+      build:'31',testAccessRequired:true,
       testAccessSecretConfigured:typeof env.TEST_ACCESS_SECRET==='string' && env.TEST_ACCESS_SECRET.length>0,
       testAccessReady:stageGateReady(env),
       publicOriginConfigured:!!env.PUBLIC_ORIGIN,
@@ -176,8 +161,7 @@ async function handle(req, env, pathname) {
   }
   // Orders/confirmation can be paused, while already paid customers retain read access.
   const readerOnly = pathname==='/api/license' || pathname.startsWith('/api/assets/')
-    || pathname==='/api/reconcile' || pathname==='/api/toss-webhook'
-    || pathname==='/api/test-cancel';
+    || pathname==='/api/reconcile' || pathname==='/api/toss-webhook';
   if(!isEnabled(env) && !(readerOnly && isReaderReady(env)))
     return json({error:'disabled',message:errors.disabled},503);
   if (pathname === '/api/orders' && req.method === 'POST') {
@@ -235,47 +219,6 @@ async function handle(req, env, pathname) {
     }
     await updatePaid(env,b.orderId,b.paymentKey);
     return json({paid:true,license:await issueLicense(env,b.orderId)});
-  }
-  if (pathname === '/api/test-cancel' && req.method === 'POST') {
-    // This route exists ONLY on the private TEST Worker. Requires a signed staging
-    // session (in fetch), the paid purchase's bearer license and explicit UI action.
-    if(env.PAYMENTS_MODE!=='test' || !isReaderReady(env))
-      return json({error:'disabled'},503);
-    await readJSON(req);
-    const owned=await licenseOrder(req,env);
-    if(owned?.status!=='paid') return json({error:'denied'},401);
-    const order=await readOrder(env,owned.order_id);
-    if(order?.status!=='paid' || !order.payment_key) return json({error:'denied'},401);
-    let payment;
-    try {
-      const status=await tossQuery(env,order.payment_key);
-      if(!status.ok) return json({error:'toss_lookup_unavailable',message:'토스 결제 상태를 확인하지 못했습니다. 다시 결제하지 마세요.'},503);
-      payment=await status.json();
-    } catch {
-      return json({error:'toss_lookup_unavailable',message:'토스 조회가 지연돼요. 나중에 새로고침해 주세요.'},503);
-    }
-    if(!matchesTossOrder(payment,order))return json({error:'payment_mismatch'},409);
-    if(isTossCanceled(payment)){
-      await revokeLicense(env,order.order_id);
-      return json({ok:true,canceled:true});
-    }
-    if(payment.status!=='DONE')return json({error:'payment_not_complete'},409);
-    let outcome=null;
-    try {
-      const response=await tossTestCancel(env,order);
-      if(response.ok) outcome=await response.json();
-    } catch { /* an uncertain network response must never trigger a second refund request */ }
-    if(!matchesTossOrder(outcome,order) || !isTossCanceled(outcome)) {
-      // Recover a possible successful cancel despite a lost response using READ-ONLY query.
-      try{
-        const verified=await tossQuery(env,order.payment_key);
-        if(verified.ok)outcome=await verified.json();
-      }catch{}
-    }
-    if(!matchesTossOrder(outcome,order) || !isTossCanceled(outcome))
-      return json({error:'cancel_unconfirmed',message:'취소 상태 확인이 지연돼요. 다시 결제하거나 취소를 반복하지 말고 새로고침해 주세요.'},503);
-    await revokeLicense(env,order.order_id);
-    return json({ok:true,canceled:true});
   }
   if (pathname === '/api/license' && req.method === 'GET') {
     const order=await licenseOrder(req,env);

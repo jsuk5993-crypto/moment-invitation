@@ -4,11 +4,10 @@ import {readFileSync} from 'node:fs';
 import {runInNewContext} from 'node:vm';
 import {webcrypto} from 'node:crypto';
 const code=readFileSync(new URL('../../site/payment/payment-client.js',import.meta.url),'utf8');
-function scenario({mode='test',enabled=true,storedLicense=null,licenseStatus=200,cancelStatus=200,confirmCancel=true}={}){
+function scenario({mode='test',enabled=true,storedLicense=null,licenseStatus=200}={}){
  const buy={disabled:true,textContent:'',click:null,addEventListener(kind,cb){if(kind==='click')this.click=cb}};
  const status={textContent:''};
- const cancel={hidden:true,disabled:true,click:null,addEventListener(kind,cb){if(kind==='click')this.click=cb}};
- const panel={innerHTML:'',className:'',querySelector:s=>s==='#moment-buy'?buy:s==='#moment-test-cancel'?cancel:status};
+ const panel={innerHTML:'',className:'',querySelector:s=>s==='#moment-buy'?buy:status};
  const note={innerHTML:''};
  const planTitle={textContent:''},priceHint={textContent:''},badge={textContent:''},benefit={textContent:''};
  const intro={textContent:''},policy={textContent:''},divider={textContent:''};
@@ -21,7 +20,7 @@ function scenario({mode='test',enabled=true,storedLicense=null,licenseStatus=200
   ['.collection-divider.paid small',divider]
  ]).get(selector)||null;
  const local=new Map(storedLicense?[['moment_premium_receipt_v1',storedLicense]]:[]);
- const session=new Map(),calls=[];let activated=0;let cancelRequests=0;let reloads=0;
+ const session=new Map(),calls=[];let activated=0;
  const TossPayments=key=>({payment:({customerKey})=>({requestPayment:async data=>calls.push({key,customerKey,data})})});
  const config={enabled,mode,amount:9900,currency:'KRW',clientKey:mode==='test'?'test_ck_mock':'live_ck_mock'};
  const fetch=async(url)=>{
@@ -29,21 +28,17 @@ function scenario({mode='test',enabled=true,storedLicense=null,licenseStatus=200
   if(path==='/api/config')return {ok:true,json:async()=>config};
   if(path==='/api/orders')return {ok:true,json:async()=>({amount:9900,orderId:'MOMENT_1234567',checkoutSecret:'a'.repeat(64)})};
   if(path==='/api/license')return {ok:licenseStatus===200,status:licenseStatus,json:async()=>({active:licenseStatus===200})};
-  if(path==='/api/test-cancel'){cancelRequests++;return {ok:cancelStatus===200,status:cancelStatus,
-    json:async()=>cancelStatus===200?{ok:true,canceled:true}:{error:'unavailable',message:'취소 확인 지연'}};}
   if(path.startsWith('/api/assets/'))return {ok:true,blob:async()=>new Blob(['sample'],{type:'image/webp'})};
   throw Error('Unknown '+path);
  };
  const window={MOMENT_PAYMENT_API:'https://example.workers.dev',
-  confirm:()=>confirmCancel,location:{reload(){reloads++}},
   MOMENT_ACCESS:{async activate(files){activated++;assert.equal(Object.keys(files).length,6)}},TossPayments};
  const document={baseURI:'https://example.workers.dev/',getElementById:id=>id==='premiumActions'?note:null,
    querySelector:query,createElement:tag=>tag==='section'?panel:null};
  runInNewContext(code,{window,document,localStorage:{getItem:k=>local.get(k)||null,setItem:(k,v)=>local.set(k,v),removeItem:k=>local.delete(k)},
    sessionStorage:{getItem:k=>session.get(k)||null,setItem:(k,v)=>session.set(k,v)},
    fetch,URL,Blob,crypto:webcrypto});
- return {buy,cancel,calls,session,plan,planTitle,badge,policy,note,local,status,
-   get activated(){return activated},get cancelRequests(){return cancelRequests},get reloads(){return reloads}};
+ return {buy,calls,session,plan,planTitle,badge,policy,note,local,status,get activated(){return activated}};
 }
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
 test('Build22: test config enables only test checkout button',async()=>{
@@ -101,42 +96,4 @@ test('Build31: refunded receipt removed and buyer may purchase a new TEST order'
  await tick();await tick();
  assert.equal(ctx.local.has('moment_premium_receipt_v1'),false);
  assert.equal(ctx.buy.disabled,false);
-});
-
-test('Build32: TEST cancellation control appears only after verified premium access',async()=>{
- const visitor=scenario();await tick();
- assert.equal(visitor.cancel.hidden,true);
- assert.equal(visitor.cancel.disabled,true);
- const buyer=scenario({storedLicense:'a'.repeat(64)});await tick();await tick();
- assert.equal(buyer.cancel.hidden,false);
- assert.equal(buyer.cancel.disabled,false);
- assert.equal(buyer.buy.disabled,true);
-});
-test('Build32: explicit confirmation cancels TEST purchase, erases receipt and reloads',async()=>{
- const token='b'.repeat(64);
- const buyer=scenario({storedLicense:token});
- await tick();await tick();
- assert.equal(buyer.cancel.hidden,false);
- await buyer.cancel.click();
- assert.equal(buyer.cancelRequests,1);
- assert.equal(buyer.local.has('moment_premium_receipt_v1'),false);
- assert.equal(buyer.reloads,1);
- assert.equal(buyer.cancel.disabled,true);
- assert.equal(buyer.calls.length,0);
-});
-test('Build32: user declining cancellation never calls API',async()=>{
- const buyer=scenario({storedLicense:'c'.repeat(64),confirmCancel:false});
- await tick();await tick();await buyer.cancel.click();
- assert.equal(buyer.cancelRequests,0);
- assert.equal(buyer.reloads,0);
- assert.equal(buyer.local.has('moment_premium_receipt_v1'),true);
-});
-test('Build32: uncertain cancellation preserves receipt; never calls cancellation twice',async()=>{
- const token='d'.repeat(64);
- const buyer=scenario({storedLicense:token,cancelStatus:503});
- await tick();await tick();await buyer.cancel.click();await buyer.cancel.click();
- assert.equal(buyer.cancelRequests,1);
- assert.equal(buyer.local.get('moment_premium_receipt_v1'),token);
- assert.equal(buyer.reloads,0);
- assert.match(buyer.status.textContent,/취소 확인 지연/);
 });
