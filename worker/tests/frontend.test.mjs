@@ -11,7 +11,9 @@ function scenario({mode='test',enabled=true,storedLicense=null,licenseStatus=200
  const recoveryIssue=newControl(),recoveryIssueBtn=newControl(),recoveryRedeem=newControl(),recoveryRedeemBtn=newControl();
  const purchaseHistory=newControl(),historyOrder=newControl(),historyAmount=newControl(),historyDate=newControl(),historyRefresh=newControl(),historyStatus=newControl();
  purchaseHistory.hidden=true;
- const recoveryInput=newControl(),recoveryCodeBox=newControl(),recoveryCodeText=newControl(),recoveryCopy=newControl(),recoveryStatus=newControl();
+ const recoveryInput=newControl(),recoveryCodeBox=newControl(),recoveryCodeText=newControl(),recoveryCopy=newControl(),recoveryDownload=newControl(),recoveryStatus=newControl();
+ const deliveryPanel=newControl(),deliveryStatus=newControl();
+ deliveryPanel.hidden=true;
  recoveryIssue.hidden=true;recoveryCodeBox.hidden=true;
  const agreement={checked:false,change:null,addEventListener(kind,cb){if(kind==='change')this.change=cb;}};
  const confirmRetryPanel=newControl(),confirmRetryButton=newControl(),confirmRetryStatus=newControl();
@@ -24,7 +26,8 @@ function scenario({mode='test',enabled=true,storedLicense=null,licenseStatus=200
   '#moment-recovery-issue':recoveryIssue,'#moment-recovery-issue-btn':recoveryIssueBtn,
   '#moment-recovery-redeem':recoveryRedeem,'#moment-recovery-redeem-btn':recoveryRedeemBtn,
   '#moment-recovery-input':recoveryInput,'#moment-recovery-code':recoveryCodeBox,
-  '#moment-recovery-code-value':recoveryCodeText,'#moment-recovery-copy':recoveryCopy,
+  '#moment-recovery-code-value':recoveryCodeText,'#moment-recovery-copy':recoveryCopy,'#moment-recovery-download':recoveryDownload,
+  '#moment-premium-ready':deliveryPanel,'#moment-premium-ready-status':deliveryStatus,
   '#moment-recovery-status':recoveryStatus};
  const panel={innerHTML:'',className:'',querySelector:s=>s==='#moment-buy'?buy:s==='#moment-policy-ack'?agreement:recoveryControls[s]||status};
  const note={innerHTML:''};
@@ -58,15 +61,23 @@ function scenario({mode='test',enabled=true,storedLicense=null,licenseStatus=200
   if(path.startsWith('/api/assets/'))return {ok:true,blob:async()=>new Blob(['sample'],{type:'image/webp'})};
   throw Error('Unknown '+path);
  };
+ const downloadedFiles=[],revokedUrls=[];
+ class TestURL extends URL {
+  static createObjectURL(blob){downloadedFiles.push({blob});return 'blob:mock-recovery-file-'+downloadedFiles.length;}
+  static revokeObjectURL(url){revokedUrls.push(url);}
+ }
  const window={confirm:()=>true,MOMENT_PAYMENT_API:'https://example.workers.dev',
   MOMENT_ACCESS:{async activate(files){activated++;assert.equal(Object.keys(files).length,6)}},TossPayments};
  const document={baseURI:'https://example.workers.dev/',getElementById:id=>id==='premiumActions'?note:null,
-   querySelector:query,createElement:tag=>tag==='section'?panel:null};
+   body:{appendChild(el){}},
+   querySelector:query,createElement:tag=>tag==='section'?panel:tag==='a'?
+     {href:'',download:'',click(){const last=downloadedFiles[downloadedFiles.length-1];last.fileName=this.download;last.href=this.href;},remove(){}}:null};
  runInNewContext(code,{window,document,localStorage:{getItem:k=>local.get(k)||null,setItem:(k,v)=>local.set(k,v),removeItem:k=>local.delete(k)},
    sessionStorage:{getItem:k=>session.get(k)||null,setItem:(k,v)=>session.set(k,v),removeItem:k=>session.delete(k)},
-   fetch,URL,Blob,crypto:webcrypto,navigator:{clipboard:{writeText:async()=>{}}}});
+   fetch,URL:TestURL,Blob,crypto:webcrypto,setTimeout:cb=>cb(),navigator:{clipboard:{writeText:async()=>{}}}});
  return {buy,agreement,calls,orderBodies,session,plan,planTitle,badge,policy,note,local,status,
-  recoveryIssue,recoveryIssueBtn,recoveryRedeem,recoveryRedeemBtn,recoveryInput,recoveryCodeBox,recoveryCodeText,recoveryBodies,recoveryStatus,
+  recoveryIssue,recoveryIssueBtn,recoveryRedeem,recoveryRedeemBtn,recoveryInput,recoveryCodeBox,recoveryCodeText,recoveryDownload,recoveryBodies,recoveryStatus,
+  deliveryPanel,deliveryStatus,downloadedFiles,revokedUrls,
   confirmRetryPanel,confirmRetryButton,confirmRetryStatus,
   purchaseHistory,historyOrder,historyAmount,historyDate,historyRefresh,historyStatus,
   get activated(){return activated}};
@@ -214,4 +225,39 @@ test('Build37: pending retry button stays hidden without existing confirmed call
  const success=readFileSync(new URL('../../site/payment/success.html',import.meta.url),'utf8');
  assert.match(success,/moment_pending_confirm_v1/);
  assert.match(success,/sessionStorage\.setItem\(pendingKey/);
+});
+
+test('Build38: after paid access, show 6/6 premium originals and link to the existing PNG editor',async()=>{
+ const guest=scenario();await tick();assert.equal(guest.deliveryPanel.hidden,true);
+ const paid=scenario({storedLicense:'b'.repeat(64)});await tick();await tick();
+ assert.equal(paid.deliveryPanel.hidden,false);
+ assert.match(paid.deliveryStatus.textContent,/6\/6/);
+ assert.match(paid.plan.appended.innerHTML,/id="moment-premium-go-studio" href="#studio4"/);
+ assert.equal(paid.calls.length,0);
+});
+test('Build38: recovery code can be saved only after issuance, in an explicit local TXT file',async()=>{
+ const paid=scenario({storedLicense:'b'.repeat(64)});await tick();await tick();
+ await paid.recoveryDownload.click();
+ assert.equal(paid.downloadedFiles.length,0);
+ await paid.recoveryIssueBtn.click();
+ assert.equal(paid.recoveryCodeBox.hidden,false);
+ await paid.recoveryDownload.click();
+ assert.equal(paid.downloadedFiles.length,1);
+ assert.equal(paid.downloadedFiles[0].fileName,'MOMENT-recovery-code.txt');
+ const saved=await paid.downloadedFiles[0].blob.text();
+ assert.match(saved,/e{64}/);
+ assert.doesNotMatch(saved,/b{64}/);
+ assert.match(saved,/1회용 복원코드/);
+ assert.equal(paid.revokedUrls.length,1);
+ assert.equal(paid.calls.length,0);
+ assert.equal(paid.orderBodies.length,0);
+});
+test('Build38: redeeming a code also offers a backup of the next one-time code',async()=>{
+ const buyer=scenario();await tick();
+ buyer.recoveryInput.value='a'.repeat(64);
+ await buyer.recoveryRedeemBtn.click();await tick();
+ await buyer.recoveryDownload.click();
+ assert.equal(buyer.downloadedFiles.length,1);
+ assert.match(await buyer.downloadedFiles[0].blob.text(),/d{64}/);
+ assert.doesNotMatch(await buyer.downloadedFiles[0].blob.text(),/a{64}/);
 });

@@ -45,6 +45,12 @@
       <button type="button" id="moment-confirm-retry-btn">기존 결제 승인 다시 확인</button>
       <p id="moment-confirm-retry-status" role="status" aria-live="polite"></p>
     </div>
+    <section id="moment-premium-ready" class="moment-premium-ready" hidden aria-label="프리미엄 이용 준비 완료">
+      <strong>프리미엄 원본 준비 완료</strong>
+      <p id="moment-premium-ready-status">프리미엄 배경을 확인하고 있어요.</p>
+      <a id="moment-premium-go-studio" href="#studio4">초대장 편집기로 이동 · PNG 2장 저장하기</a>
+      <p>편집기에서 프리미엄 디자인을 고르고 초대 정보를 입력한 다음 저장하세요. 이 버튼 자체가 PNG를 저장하는 것은 아닙니다.</p>
+    </section>
     <section class="moment-purchase-history" id="moment-purchase-history" hidden aria-label="내 구매내역">
       <strong>내 구매내역</strong>
       <dl><dt>주문번호</dt><dd id="moment-history-order">-</dd>
@@ -65,7 +71,9 @@
         <button type="button" id="moment-recovery-issue-btn">1회용 복원코드 발급·재발급</button></div>
       <div id="moment-recovery-code" hidden role="status" aria-live="polite"><p>이 코드는 다시 표시되지 않아요. 반드시 따로 저장하세요. 다른 사람이 알면 구매 권한을 이전할 수 있습니다.</p>
         <code id="moment-recovery-code-value"></code>
-        <button type="button" id="moment-recovery-copy">복원코드 복사</button></div>
+        <button type="button" id="moment-recovery-copy">복원코드 복사</button>
+        <button type="button" id="moment-recovery-download">복원코드 TXT 파일로 저장</button>
+        <p class="moment-code-storage-note">파일에는 기기 이전에 필요한 비밀 코드가 포함됩니다. 개인 기기에만 보관하고 공유·업로드하지 마세요.</p></div>
       <p id="moment-recovery-status" role="status" aria-live="polite"></p>
     </section>`;
   plan.append(panel);
@@ -106,6 +114,8 @@
     }catch(e){confirmRetryStatus.textContent=(e.message||'결제 상태 조회 실패')+' 새로 결제하지 말고 다시 시도해 주세요.';}
     finally{confirmRetryButton.disabled=false;}
   });
+  const deliveryPanel=panel.querySelector('#moment-premium-ready');
+  const deliveryStatus=panel.querySelector('#moment-premium-ready-status');
   const purchaseHistory=panel.querySelector('#moment-purchase-history');
   const historyOrder=panel.querySelector('#moment-history-order');
   const historyAmount=panel.querySelector('#moment-history-amount');
@@ -137,6 +147,7 @@
   const recoveryCodeBox=panel.querySelector('#moment-recovery-code');
   const recoveryCodeText=panel.querySelector('#moment-recovery-code-value');
   const recoveryCopy=panel.querySelector('#moment-recovery-copy');
+  const recoveryDownload=panel.querySelector('#moment-recovery-download');
   const recoveryStatus=panel.querySelector('#moment-recovery-status');
   let plainRecoveryCode='';
   const sayRecovery=s=>recoveryStatus.textContent=s;
@@ -174,6 +185,42 @@
     try{await navigator.clipboard.writeText(plainRecoveryCode);sayRecovery('복원코드를 복사했어요. 안전한 곳에 보관하세요.');}
     catch{sayRecovery('자동 복사가 차단됐어요. 위 코드를 직접 선택해 복사해 주세요.');}
   });
+  recoveryDownload.addEventListener('click',()=>{
+    // The code is only available in memory immediately after issue/redeem.
+    // A user action is mandatory; never auto-save or put a code into a URL.
+    if(!/^[a-f0-9]{64}$/.test(plainRecoveryCode)){
+      sayRecovery('현재 화면에 표시된 복원코드가 없어요. 구매 권한으로 새 코드를 발급해 주세요.');
+      return;
+    }
+    let url='';
+    try{
+      const lines=[
+        'MOMENT · 프리미엄 기기 변경용 복원코드 (TEST)',
+        '',
+        '1회용 복원코드: '+plainRecoveryCode,
+        '',
+        '사용 방법: MOMENT 비공개 TEST 사이트에서 기존 구매 복원에 입력하세요.',
+        '사용하면 이 코드는 폐기되고 새 복원코드를 반드시 다시 저장해야 합니다.',
+        '이 파일을 타인에게 공유하거나 공개 저장소에 업로드하지 마세요.',
+        '이 파일은 영수증이나 결제 증명서가 아닙니다.'
+      ];
+      const content=lines.join('\n');
+      const file=new Blob([content],{type:'text/plain;charset=utf-8'});
+      url=URL.createObjectURL(file);
+      const a=document.createElement('a');
+      a.href=url;
+      a.download='MOMENT-recovery-code.txt';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      // Delay revocation to let mobile browsers finish initiating the download.
+      setTimeout(()=>URL.revokeObjectURL(url),1500);
+      sayRecovery('복원코드 파일 저장을 요청했어요. 실제 저장 여부를 확인하고 안전하게 보관해 주세요.');
+    }catch(e){
+      if(url)URL.revokeObjectURL(url);
+      sayRecovery('파일 저장이 지원되지 않는 브라우저예요. 복원코드 복사 버튼을 이용해 주세요.');
+    }
+  });
   recoveryRedeemBtn.addEventListener('click',async()=>{
     const code=recoveryInput.value.replace(/[\s-]/g,'').toLowerCase();
     if(!/^[a-f0-9]{64}$/.test(code)){sayRecovery('64자리 복원코드를 입력해 주세요.');return;}
@@ -199,14 +246,20 @@
     if(check.status===401){localStorage.removeItem(tokenStorageKey);return false;}
     if(!check.ok)throw new Error('구매 상태 확인이 일시적으로 지연되고 있어요. 다시 결제하지 말고 새로고침해 주세요.');
     const photos={};
+    deliveryPanel.hidden=true;
+    let loaded=0;
     for(const id of PREMIUM){
       const res=await get('/api/assets/'+id,{headers:{authorization:'Bearer '+token}});
       if(!res.ok)throw new Error('원본 이미지 제공 준비가 끝나지 않았어요.');
       const blob=await res.blob();
       if(!blob.type.startsWith('image/'))throw new Error('이미지 데이터가 올바르지 않아요.');
       photos[id]=blob;
+      loaded++;
+      say('프리미엄 배경 다운로드 확인 중… '+loaded+'/'+PREMIUM.length);
     }
     await window.MOMENT_ACCESS.activate(photos);
+    deliveryStatus.textContent='프리미엄 배경 '+loaded+'/'+PREMIUM.length+'종을 불러왔어요. 이제 편집기에서 초대장을 완성하고 고화질 PNG 세트를 저장하세요.';
+    deliveryPanel.hidden=false;
     buy.disabled=true;buy.textContent='프리미엄 이용 중';
     confirmRetryPanel.hidden=true;
     recoveryIssue.hidden=false;recoveryRedeem.hidden=true;

@@ -73,3 +73,13 @@
 }
 .plan4.active .moment-ack-label:focus-within{outline:2px solid #e7facb;outline-offset:2px}
 .plan4.active .moment-ack-label strong{display:inline;color:#efffc9;font-weight:800}
+
+/* Build 38: visible readiness and user-requested one-time recovery backup. */
+.plan4.active .moment-premium-ready{margin-top:16px;padding:15px;border:1px solid #c2d8a4;background:#34503a;border-radius:11px;color:#f3f9e9;text-align:left}
+.plan4.active .moment-premium-ready[hidden]{display:none!important}
+.plan4.active .moment-premium-ready strong{display:block;font-size:13px;font-weight:800}
+.plan4.active .moment-premium-ready p{margin:8px 0;color:#dfeede;font-size:11px;line-height:1.7}
+.plan4.active .moment-premium-ready a{display:block;padding:13px 10px;margin:11px 0 4px;border-radius:9px;text-align:center;background:#e7f4d1;color:#25402b;font-size:12px;font-weight:800;text-decoration:none}
+.plan4.active .moment-premium-ready a:hover{background:#f4ffe0}
+.plan4.active .moment-recovery .moment-code-storage-note{font-size:10px;color:#f1e3c9;line-height:1.7}
+.plan4.active #moment-recovery-download{margin-top:8px}

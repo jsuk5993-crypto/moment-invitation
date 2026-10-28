@@ -116,13 +116,13 @@ async function readJSON(req) {
 async function handle(req, env, pathname) {
   if (pathname === '/api/health' && req.method === 'GET') {
     // Safe public bootstrap diagnostic: never exposes credentials or purchase data.
-    return json({ok:true, service:'moment-payments', build:'36', paymentsEnabled:isEnabled(env)});
+    return json({ok:true, service:'moment-payments', build:'38', paymentsEnabled:isEnabled(env)});
   }
   if (pathname === '/api/ui-health' && req.method === 'GET') {
     // Build36 regression: smoke-test deployed, password-protected static UI
     // without disclosing its contents or weakening the TEST staging gate.
     try {
-      if(!env.STAGING_ASSETS?.fetch)return json({ok:false,checkboxStyleReady:false,checkoutClientReady:false,checkoutResumeReady:false},503);
+      if(!env.STAGING_ASSETS?.fetch)return json({ok:false,checkboxStyleReady:false,checkoutClientReady:false,checkoutResumeReady:false,recoveryBackupReady:false,premiumDeliveryGuideReady:false},503);
       const origin=new URL(req.url).origin;
       const [css,js,success]=await Promise.all([
         env.STAGING_ASSETS.fetch(new Request(origin+'/payment/payment-style.css')),
@@ -134,9 +134,13 @@ async function handle(req, env, pathname) {
       const checkoutClientReady=clientText.includes('구매 안내를 확인하려면 위 안내문 아래의 네모 체크박스');
       const checkoutResumeReady=clientText.includes('기존 결제 승인 다시 확인')
         && success.ok && (await success.text()).includes('moment_pending_confirm_v1');
-      const ok=checkboxStyleReady&&checkoutClientReady&&checkoutResumeReady;
-      return json({ok,checkboxStyleReady,checkoutClientReady,checkoutResumeReady},ok?200:503);
-    }catch{return json({ok:false,checkboxStyleReady:false,checkoutClientReady:false,checkoutResumeReady:false},503);}
+      const recoveryBackupReady=clientText.includes('MOMENT-recovery-code.txt')
+        && clientText.includes('moment-recovery-download');
+      const premiumDeliveryGuideReady=clientText.includes('moment-premium-go-studio')
+        && clientText.includes('프리미엄 배경 다운로드 확인 중');
+      const ok=checkboxStyleReady&&checkoutClientReady&&checkoutResumeReady&&recoveryBackupReady&&premiumDeliveryGuideReady;
+      return json({ok,checkboxStyleReady,checkoutClientReady,checkoutResumeReady,recoveryBackupReady,premiumDeliveryGuideReady},ok?200:503);
+    }catch{return json({ok:false,checkboxStyleReady:false,checkoutClientReady:false,checkoutResumeReady:false,recoveryBackupReady:false,premiumDeliveryGuideReady:false},503);}
   }
   if (pathname === '/api/db-health' && req.method === 'GET') {
     // Public read-only diagnostic. Never returns order records or credentials.
@@ -175,7 +179,7 @@ async function handle(req, env, pathname) {
       orderDatabaseBound:!!env.DB,premiumStorageBound:!!env.PREMIUM_ASSETS,
       paymentSwitchActive:env.PAYMENTS_ACTIVE==='true',
       // Build28: this is an immutable security rule, NOT an env variable.
-      build:'36',testAccessRequired:true,
+      build:'38',testAccessRequired:true,
       testAccessSecretConfigured:typeof env.TEST_ACCESS_SECRET==='string' && env.TEST_ACCESS_SECRET.length>0,
       testAccessReady:stageGateReady(env),
       publicOriginConfigured:!!env.PUBLIC_ORIGIN,

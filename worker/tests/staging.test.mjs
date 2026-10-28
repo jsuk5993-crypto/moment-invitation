@@ -127,7 +127,7 @@ test('Build26: missing legacy flag cannot affect protected test editor or signed
  assert.equal(paidApi.status,401);
  const config=await worker.fetch(req('/api/payment-setup'),noToggle);
  const state=await config.json();
- assert.equal(state.build,'36');
+ assert.equal(state.build,'38');
  assert.equal(state.testAccessRequired,true);
  assert.equal(state.testAccessSecretConfigured,true);
  assert.equal(state.testAccessReady,true);
