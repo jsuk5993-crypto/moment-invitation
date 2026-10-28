@@ -44,3 +44,20 @@ test('RC1 production cannot be unlocked with test credentials or a staging sessi
  const page=await worker.fetch(req('/'),e);
  assert.equal(page.status,503);
 });
+ 
+test('RC1 paused LIVE sales retain paid-customer read capabilities while denying NEW orders',async()=>{
+ const sold=base();
+ assert.equal(isEnabled(sold),true);
+ const paused={...sold,PAYMENTS_ACTIVE:'false',LIVE_LAUNCH_APPROVED:'false',LIVE_PG_APPROVED:'false',SELLER_NAME:''};
+ assert.equal(isReaderReady(paused),true,'past buyers must still be able to validate a paid license');
+ assert.equal(isEnabled(paused),false,'new checkout is blocked');
+ const cfg=await worker.fetch(req('/api/config'),paused);
+ assert.equal(cfg.status,200);assert.equal((await cfg.json()).enabled,false);
+ const newOrder=await worker.fetch(new Request('https://moment.example.com/api/orders',{method:'POST',
+   headers:{origin:'https://moment.example.com','content-type':'application/json'},
+   body:JSON.stringify({policyAcknowledged:true,policyVersion:'2026-10-28-v1'})}),paused);
+ assert.equal(newOrder.status,503);
+ assert.equal((await newOrder.json()).error,'disabled');
+ assert.equal(isReaderReady({...paused,TOSS_SECRET_KEY:'test_sk_wrong'}),false,
+   'LIVE buyers are never verified against TEST API keys');
+});

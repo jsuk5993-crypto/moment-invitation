@@ -27,20 +27,24 @@ const merchantReady=(env)=>merchantFields.every(k=>typeof env[k]==='string'&&env
   && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(env.SELLER_EMAIL)
   && /^\d{3}-?\d{2}-?\d{5}$/.test(env.SELLER_REGISTRATION_NUMBER);
 const isProduction=(env)=>env.DEPLOYMENT_KIND==='public-live';
-const productionReady=(env)=>isProduction(env)&&env.PAYMENTS_MODE==='live'
-  && env.LIVE_LAUNCH_APPROVED==='true' && env.LIVE_PG_APPROVED==='true'
-  && merchantReady(env) && /^https:\/\//.test(env.PUBLIC_ORIGIN||'')
+const productionReaderReady=(env)=>isProduction(env)&&env.PAYMENTS_MODE==='live'
+  && /^https:\/\//.test(env.PUBLIC_ORIGIN||'')
   && !!env.DB && !!env.PREMIUM_ASSETS
   && typeof env.TOSS_SECRET_KEY==='string' && env.TOSS_SECRET_KEY.startsWith('live_sk_');
+// Existing paid customers must retain entitlement when NEW sales are suspended.
+// Never use merchant info or launch approval switches as an access revocation tool.
+const productionReady=(env)=>productionReaderReady(env)
+  && env.LIVE_LAUNCH_APPROVED==='true' && env.LIVE_PG_APPROVED==='true'
+  && merchantReady(env);
 // TEST is still password-protected regardless of Cloudflare dashboard flags.
 // Production requires a separate Worker, DB, R2, keys, seller and manual launch approvals.
 const isReaderReady = (env) => (env.PAYMENTS_MODE === 'test'
   && !isProduction(env) && stageGateReady(env) && !!env.DB && !!env.PREMIUM_ASSETS
   && typeof env.TOSS_SECRET_KEY === 'string' && env.TOSS_SECRET_KEY.startsWith('test_sk_')
-  && !!env.PUBLIC_ORIGIN) || productionReady(env);
+  && !!env.PUBLIC_ORIGIN) || productionReaderReady(env);
 // Enabling/disabling new checkout must NEVER revoke access for earlier paid orders.
 const isEnabled = (env) => env.PAYMENTS_ACTIVE === 'true' && isReaderReady(env)
-  && keyPairReady(env);
+  && keyPairReady(env) && (!isProduction(env) || productionReady(env));
 const cors = (origin) => ({'access-control-allow-origin':origin, 'vary':'Origin', 'access-control-allow-methods':'GET,POST,OPTIONS', 'access-control-allow-headers':'content-type,authorization', 'access-control-max-age':'600'});
 class ClientInputError extends Error {}
 const errors = { disabled: '결제 연결 준비 중입니다.', invalid: '요청 정보를 확인해 주세요.', denied: '구매 권한이 확인되지 않았습니다.', unexpected: '결제 상태 확인이 지연되고 있습니다. 중복 결제하지 말고 고객센터에 문의해 주세요.' };

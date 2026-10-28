@@ -43,3 +43,8 @@ node release/scripts/preflight.mjs --go-live
 - **코드 통합 후보:** RC1 브랜치에서 자동 테스트 결과를 확인.
 - **실판매 허가:** 현재 NO-GO — 필요한 사업자 정보/PG LIVE/실거래/법적 고지 및 지원 체계 미완료.
 - **승인 후:** 출시 차단 항목을 모두 통과한 상태에서 `release/moment-rc1`의 전체 내용을 검수하고 정식 도메인에 배포. 불필요한 추가 Build 증식은 없음.
+
+## 기존 구매자 보호 (RC1 마지막 보강)
+- `PAYMENTS_ACTIVE=false`, `LIVE_LAUNCH_APPROVED=false` 혹은 `LIVE_PG_APPROVED=false`는 **새 주문만 중단**합니다.
+- 이미 판매된 주문의 구매 확인·이미지 제공·복원코드 발급·기기 이전은 별도 LIVE D1/R2 및 LIVE 결제 조회 키가 유지되는 한 계속 처리합니다.
+- 실제 결제사 키·D1·R2를 제거하면 정상 구매자가 접근하지 못할 수 있으므로 임의 삭제하지 않습니다. 보안 사고 시에는 별도 복구 절차가 필요합니다.
