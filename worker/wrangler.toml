@@ -9,10 +9,11 @@ PAYMENTS_MODE = "test"
 PUBLIC_ORIGIN = "https://jsuk5993-crypto.github.io"
 # Staging password protection is always ON in code. No TEST_ACCESS_REQUIRED variable.
 
-# Values must never be saved in GitHub or the [vars] block.
-# Wrangler validates that these encrypted Cloudflare Secrets exist before deploying.
-[secrets]
-required = ["TOSS_CLIENT_KEY", "TOSS_SECRET_KEY", "TEST_ACCESS_SECRET"]
+# Runtime Secrets must be added under Worker Settings > Variables and Secrets:
+# TOSS_CLIENT_KEY, TOSS_SECRET_KEY, TEST_ACCESS_SECRET.
+# Do not use [secrets].required in automatic deployment here: Cloudflare's
+# build environment currently cannot find TEST_ACCESS_SECRET at deploy time.
+# Runtime protection in worker.mjs/staging.mjs fails closed if it is absent.
 
 [[d1_databases]]
 binding = "DB"
