@@ -61,3 +61,25 @@ test('Invalid origin rejected even with valid session',async()=>{
  const res=await worker.fetch(req('/api/config',{headers:{cookie:session,origin:'https://attacker.example'}}),env);
  assert.equal(res.status,403);
 });
+
+test('Build22: test checkout enabled only for signed session',async()=>{
+ const on={...env,PAYMENTS_ACTIVE:'true',TOSS_CLIENT_KEY:'test_ck_qa',TOSS_SECRET_KEY:'test_sk_qa',
+  DB:{prepare(){return {bind(){return {run:async()=>({meta:{changes:1}})}}}}},PREMIUM_ASSETS:{}};
+ assert.equal((await worker.fetch(req('/api/config'),on)).status,401);
+ const session=await cookie();
+ const config=await worker.fetch(req('/api/config',{headers:{cookie:session}}),on);
+ assert.equal(config.status,200);
+ assert.deepEqual(await config.json(),{enabled:true,mode:'test',amount:9900,currency:'KRW',clientKey:'test_ck_qa'});
+ const order=await worker.fetch(req('/api/orders',{method:'POST',headers:{cookie:session,'content-type':'application/json',origin:base},body:'{}'}),on);
+ assert.equal(order.status,201);
+ const payload=await order.json();assert.equal(payload.amount,9900);
+ assert.match(payload.checkoutSecret,/^[a-f0-9]{64}$/);
+});
+test('Build22: accidentally setting LIVE while staging never enables checkout',async()=>{
+ const live={...env,PAYMENTS_ACTIVE:'true',PAYMENTS_MODE:'live',TOSS_CLIENT_KEY:'live_ck_qa',
+   TOSS_SECRET_KEY:'live_sk_qa',DB:{},PREMIUM_ASSETS:{}};
+ const response=await worker.fetch(req('/api/config',{headers:{cookie:await cookie()}}),live);
+ assert.notEqual(response.status,200);
+ const setup=await worker.fetch(req('/api/payment-setup'),live);
+ assert.equal((await setup.json()).paymentsEnabled,false);
+});

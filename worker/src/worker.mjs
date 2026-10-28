@@ -20,7 +20,7 @@ const keyPairReady = (env) => {
 };
 const isEnabled = (env) => env.PAYMENTS_ACTIVE === 'true' && keyPairReady(env)
   && !!env.DB && !!env.PREMIUM_ASSETS && !!env.PUBLIC_ORIGIN
-  && (env.PAYMENTS_MODE !== 'test' || env.TEST_ACCESS_REQUIRED !== 'true' || stageGateReady(env));
+  && (env.TEST_ACCESS_REQUIRED !== 'true' || stageGateReady(env));
 const cors = (origin) => ({'access-control-allow-origin':origin, 'vary':'Origin', 'access-control-allow-methods':'GET,POST,OPTIONS', 'access-control-allow-headers':'content-type,authorization', 'access-control-max-age':'600'});
 class ClientInputError extends Error {}
 const errors = { disabled: '결제 연결 준비 중입니다.', invalid: '요청 정보를 확인해 주세요.', denied: '구매 권한이 확인되지 않았습니다.', unexpected: '결제 상태 확인이 지연되고 있습니다. 중복 결제하지 말고 고객센터에 문의해 주세요.' };

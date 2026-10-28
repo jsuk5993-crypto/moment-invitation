@@ -39,7 +39,7 @@
     if(!available())return;
     try{
       const res=await get('/api/config');const cfg=await res.json();
-      if(!cfg.enabled || !['test','live'].includes(cfg.mode))return;
+      if(!cfg.enabled || cfg.mode!=='test')return; // staging NEVER accepts LIVE config
       if(!Number.isInteger(cfg.amount)||cfg.amount!==9900)return;
       if(!cfg.clientKey)return;
       const receipt=localStorage.getItem(tokenStorageKey);
@@ -58,7 +58,9 @@
           if(order.amount!==9900 || !order.checkoutSecret || !order.orderId)throw new Error('주문 정보가 올바르지 않아요.');
           sessionStorage.setItem('moment_order_'+order.orderId,order.checkoutSecret);
           const toss=window.TossPayments(cfg.clientKey);
-          const payment=toss.payment({customerKey:window.TossPayments.ANONYMOUS});
+          const customerKey=sessionStorage.getItem('moment_test_customer_v1') || crypto.randomUUID();
+          sessionStorage.setItem('moment_test_customer_v1',customerKey);
+          const payment=toss.payment({customerKey});
           // Navigate in the SAME tab so sessionStorage survives Toss redirect.
           await payment.requestPayment({
             method:'CARD', amount:{value:9900,currency:'KRW'}, orderId:order.orderId,
