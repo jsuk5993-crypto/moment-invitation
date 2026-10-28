@@ -1,6 +1,4 @@
-# Cloudflare Workers Builds — safe FIRST deployment.
-# Keep checkout switched OFF until Toss TEST keys, D1 and private R2 are connected.
-# Connect GitHub on the feat/build14-payment-test branch, project root /worker.
+# MOMENT Build 21: protected same-origin test editor; payment remains OFF.
 name = "moment-payments-test"
 main = "src/worker.mjs"
 compatibility_date = "2026-10-20"
@@ -8,18 +6,22 @@ compatibility_date = "2026-10-20"
 [vars]
 PAYMENTS_ACTIVE = "false"
 PAYMENTS_MODE = "test"
+TEST_ACCESS_REQUIRED = "true"
 PUBLIC_ORIGIN = "https://jsuk5993-crypto.github.io"
 
-# Build 17: remote D1 order database; schema created via Cloudflare Console.
 [[d1_databases]]
 binding = "DB"
 database_name = "moment-orders"
 database_id = "c86c6827-7982-457f-9049-60991d782a85"
 
-# Build 18: private R2 premium backgrounds uploaded under premium/*.webp.
 [[r2_buckets]]
 binding = "PREMIUM_ASSETS"
 bucket_name = "moment-premium-private"
 
-# Never expose an r2.dev public URL for this bucket.
-# Never write TOSS_SECRET_KEY or ADMIN_SECRET in this public file.
+[assets]
+directory = "../site"
+binding = "STAGING_ASSETS"
+run_worker_first = true
+
+# Secret: TEST_ACCESS_SECRET (>=24 characters) must be added only in Cloudflare.
+# Test ck/sk secrets are also stored there. Never commit secret values.

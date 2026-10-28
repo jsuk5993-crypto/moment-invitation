@@ -1,3 +1,4 @@
+import {handleStagingRequest,hasStageSession,stageGateReady} from './staging.mjs';
 /* MOMENT checkout API — Cloudflare Worker / D1 / R2
  * Payment succeeds ONLY after server-side Toss confirmation.
  * Never deploy with real keys in source control. PAYMENTS_ACTIVE defaults OFF.
@@ -18,7 +19,8 @@ const keyPairReady = (env) => {
     && env.TOSS_CLIENT_KEY.startsWith(prefix + 'ck_') && env.TOSS_SECRET_KEY.startsWith(prefix + 'sk_');
 };
 const isEnabled = (env) => env.PAYMENTS_ACTIVE === 'true' && keyPairReady(env)
-  && !!env.DB && !!env.PREMIUM_ASSETS && !!env.PUBLIC_ORIGIN;
+  && !!env.DB && !!env.PREMIUM_ASSETS && !!env.PUBLIC_ORIGIN
+  && (env.PAYMENTS_MODE !== 'test' || env.TEST_ACCESS_REQUIRED !== 'true' || stageGateReady(env));
 const cors = (origin) => ({'access-control-allow-origin':origin, 'vary':'Origin', 'access-control-allow-methods':'GET,POST,OPTIONS', 'access-control-allow-headers':'content-type,authorization', 'access-control-max-age':'600'});
 class ClientInputError extends Error {}
 const errors = { disabled: '결제 연결 준비 중입니다.', invalid: '요청 정보를 확인해 주세요.', denied: '구매 권한이 확인되지 않았습니다.', unexpected: '결제 상태 확인이 지연되고 있습니다. 중복 결제하지 말고 고객센터에 문의해 주세요.' };
@@ -228,12 +230,21 @@ async function handle(req, env, pathname) {
 }
 export default {
   async fetch(req, env) {
+    const pathname=new URL(req.url).pathname;
+    if(!pathname.startsWith('/api/'))return handleStagingRequest(req,env,pathname);
     const origin = req.headers.get('origin');
     const allowed=normalizeOrigin(env.PUBLIC_ORIGIN||'');
+    const selfOrigin=new URL(req.url).origin;
     const siteOrigin=origin ? normalizeOrigin(origin) : '';
-    if (!allowed || (origin && siteOrigin !== allowed)) return json({error:'origin_denied'},403);
-    const headers=cors(allowed);
+    const validStagingOrigin=env.TEST_ACCESS_REQUIRED==='true' && siteOrigin===selfOrigin;
+    if (!allowed || (origin && siteOrigin !== allowed && !validStagingOrigin)) return json({error:'origin_denied'},403);
+    const headers=cors(validStagingOrigin?selfOrigin:allowed);
     if(req.method==='OPTIONS')return new Response(null,{status:204,headers});
+    const publicChecks=new Set(['/api/health','/api/db-health','/api/r2-health','/api/payment-setup']);
+    if(env.TEST_ACCESS_REQUIRED==='true' && !publicChecks.has(pathname)){
+      if(!stageGateReady(env))return json({error:'test_access_unconfigured'},503,headers);
+      if(!(await hasStageSession(req,env)))return json({error:'test_access_required'},401,headers);
+    }
     let response;
     try {response=await handle(req,env,new URL(req.url).pathname);} catch (e) {
       response=e instanceof ClientInputError ? json({error:'bad_request',message:'요청 형식 또는 크기를 확인해 주세요.'},400) : json({error:'server_error',message:'요청 처리 중 오류가 발생했어요.'},500);
