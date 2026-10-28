@@ -123,7 +123,7 @@ test('Build23 setup diagnostics isolate the stage password and disabled switch w
 test('Build28 diagnostics distinguish missing secret bindings from wrong key format without disclosure',async()=>{
  const base={...env,DB:{},PREMIUM_ASSETS:{}};
  const missing=await (await app.fetch(req('GET','/api/payment-setup'),base)).json();
- assert.equal(missing.build,'34');
+ assert.equal(missing.build,'35');
  assert.equal(missing.clientKeyPresent,false);
  assert.equal(missing.secretKeyPresent,false);
  assert.equal(missing.clientKeyConfigured,false);
