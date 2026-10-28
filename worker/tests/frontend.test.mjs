@@ -89,7 +89,7 @@ test('Build31: temporarily unavailable Toss verification never triggers duplicat
  assert.equal(ctx.buy.disabled,true);
  assert.equal(ctx.calls.length,0);
  assert.equal(ctx.local.get('moment_premium_receipt_v1'),original);
- assert.match(ctx.status.textContent,/중복 결제하지 마세요/);
+ assert.match(ctx.status.textContent,/다시 결제하지 말고 새로고침해 주세요/);
 });
 test('Build31: refunded receipt removed and buyer may purchase a new TEST order',async()=>{
  const ctx=scenario({storedLicense:'d'.repeat(64),licenseStatus:401});
