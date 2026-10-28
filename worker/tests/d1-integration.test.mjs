@@ -160,3 +160,63 @@ test('D1 integration: no admin secret, invalid design and arbitrary token are de
   assert.equal((await worker.fetch(request('/api/reconcile','POST',{orderId:o.orderId}),env)).status,403);
  }finally{globalThis.fetch=oldFetch;sqlite.close()}
 });
+
+// Build31: do not revoke already-paid customers when merchant pauses new checkout.
+test('Build31: existing license and R2 downloads survive PAYMENTS_ACTIVE=false; new orders blocked',async()=>{
+ const {env,sqlite}=makeEnvironment(),o=await newOrder(env),originalFetch=globalThis.fetch;
+ globalThis.fetch=async()=>Response.json(payment(o));
+ try{
+   const confirmed=await parsed(await confirm(env,o));
+   assert.equal(confirmed.status,200);
+   env.PAYMENTS_ACTIVE='false';
+   const cfg=await parsed(await worker.fetch(request('/api/config'),env));
+   assert.equal(cfg.body.enabled,false);
+   assert.equal((await worker.fetch(request('/api/orders','POST',{}),env)).status,503);
+   const verified=await worker.fetch(request('/api/license?verify=1','GET',undefined,confirmed.body.license),env);
+   assert.equal(verified.status,200);
+   const asset=await worker.fetch(request('/api/assets/disco','GET',undefined,confirmed.body.license),env);
+   assert.equal(asset.status,200);
+   assert.equal(await asset.text(),'WEBP');
+ }finally{globalThis.fetch=originalFetch;sqlite.close()}
+});
+test('Build31: verified cancellation revokes license on restore even without webhook',async()=>{
+ const {env,sqlite}=makeEnvironment(),o=await newOrder(env),originalFetch=globalThis.fetch;
+ globalThis.fetch=async()=>Response.json(payment(o));
+ try{
+   const confirmed=await parsed(await confirm(env,o));
+   env.PAYMENTS_ACTIVE='false';
+   globalThis.fetch=async()=>Response.json(payment(o,'CANCELED'));
+   const verified=await worker.fetch(request('/api/license?verify=1','GET',undefined,confirmed.body.license),env);
+   assert.equal(verified.status,401);
+   assert.equal(sqlite.prepare('SELECT status FROM orders WHERE order_id=?').get(o.orderId).status,'refunded');
+   assert.equal((await worker.fetch(request('/api/assets/disco','GET',undefined,confirmed.body.license),env)).status,401);
+ }finally{globalThis.fetch=originalFetch;sqlite.close()}
+});
+test('Build31: partial cancellation revokes license on restore while keeping new checkout closed',async()=>{
+ const {env,sqlite}=makeEnvironment(),o=await newOrder(env),originalFetch=globalThis.fetch;
+ globalThis.fetch=async()=>Response.json(payment(o));
+ try{
+   const confirmed=await parsed(await confirm(env,o));
+   env.PAYMENTS_ACTIVE='false';
+   globalThis.fetch=async()=>Response.json(payment(o,'PARTIAL_CANCELED'));
+   const verified=await worker.fetch(request('/api/license?verify=1','GET',undefined,confirmed.body.license),env);
+   assert.equal(verified.status,401);
+   assert.equal(sqlite.prepare('SELECT status FROM orders WHERE order_id=?').get(o.orderId).status,'refunded');
+ }finally{globalThis.fetch=originalFetch;sqlite.close()}
+});
+test('Build31: Toss inquiry downtime does not revoke valid paid license or allow another charge',async()=>{
+ const {env,sqlite}=makeEnvironment(),o=await newOrder(env),originalFetch=globalThis.fetch;
+ globalThis.fetch=async()=>Response.json(payment(o));
+ try{
+   const confirmed=await parsed(await confirm(env,o));
+   env.PAYMENTS_ACTIVE='false';
+   globalThis.fetch=async()=>Response.json({error:'TEMPORARY_UNAVAILABLE'},{status:503});
+   const pending=await worker.fetch(request('/api/license?verify=1','GET',undefined,confirmed.body.license),env);
+   assert.equal(pending.status,503);
+   assert.equal(sqlite.prepare('SELECT status FROM orders WHERE order_id=?').get(o.orderId).status,'paid');
+   assert.equal((await worker.fetch(request('/api/orders','POST',{}),env)).status,503);
+   globalThis.fetch=async()=>Response.json(payment(o));
+   const retry=await worker.fetch(request('/api/license?verify=1','GET',undefined,confirmed.body.license),env);
+   assert.equal(retry.status,200);
+ }finally{globalThis.fetch=originalFetch;sqlite.close()}
+});

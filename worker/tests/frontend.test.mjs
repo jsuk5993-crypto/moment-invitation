@@ -4,7 +4,7 @@ import {readFileSync} from 'node:fs';
 import {runInNewContext} from 'node:vm';
 import {webcrypto} from 'node:crypto';
 const code=readFileSync(new URL('../../site/payment/payment-client.js',import.meta.url),'utf8');
-function scenario({mode='test',enabled=true,storedLicense=null}={}){
+function scenario({mode='test',enabled=true,storedLicense=null,licenseStatus=200}={}){
  const buy={disabled:true,textContent:'',click:null,addEventListener(kind,cb){if(kind==='click')this.click=cb}};
  const status={textContent:''};
  const panel={innerHTML:'',className:'',querySelector:s=>s==='#moment-buy'?buy:status};
@@ -27,7 +27,7 @@ function scenario({mode='test',enabled=true,storedLicense=null}={}){
   const path=new URL(url).pathname;
   if(path==='/api/config')return {ok:true,json:async()=>config};
   if(path==='/api/orders')return {ok:true,json:async()=>({amount:9900,orderId:'MOMENT_1234567',checkoutSecret:'a'.repeat(64)})};
-  if(path==='/api/license')return {ok:true,json:async()=>({active:true})};
+  if(path==='/api/license')return {ok:licenseStatus===200,status:licenseStatus,json:async()=>({active:licenseStatus===200})};
   if(path.startsWith('/api/assets/'))return {ok:true,blob:async()=>new Blob(['sample'],{type:'image/webp'})};
   throw Error('Unknown '+path);
  };
@@ -35,9 +35,10 @@ function scenario({mode='test',enabled=true,storedLicense=null}={}){
   MOMENT_ACCESS:{async activate(files){activated++;assert.equal(Object.keys(files).length,6)}},TossPayments};
  const document={baseURI:'https://example.workers.dev/',getElementById:id=>id==='premiumActions'?note:null,
    querySelector:query,createElement:tag=>tag==='section'?panel:null};
- runInNewContext(code,{window,document,localStorage:{getItem:k=>local.get(k)||null,setItem:(k,v)=>local.set(k,v)},
-   sessionStorage:{getItem:k=>session.get(k)||null,setItem:(k,v)=>session.set(k,v)},fetch,URL,Blob,crypto:webcrypto});
- return {buy,calls,session,plan,planTitle,badge,policy,note,get activated(){return activated}};
+ runInNewContext(code,{window,document,localStorage:{getItem:k=>local.get(k)||null,setItem:(k,v)=>local.set(k,v),removeItem:k=>local.delete(k)},
+   sessionStorage:{getItem:k=>session.get(k)||null,setItem:(k,v)=>session.set(k,v)},
+   fetch,URL,Blob,crypto:webcrypto});
+ return {buy,calls,session,plan,planTitle,badge,policy,note,local,status,get activated(){return activated}};
 }
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
 test('Build22: test config enables only test checkout button',async()=>{
@@ -69,4 +70,30 @@ test('Build29: purchase button is visibly mounted on the PREMIUM pricing plan wi
  assert.match(ctx.badge.textContent,/실제 청구 없음/);
  assert.match(ctx.policy.textContent,/정식 판매는 아직/);
  assert.match(ctx.note.innerHTML,/결제 카드로 이동/);
+});
+
+// Build31 regression cases: don't charge existing customers when checkout is paused.
+test('Build31: paid buyer can restore access even when new checkout is disabled',async()=>{
+ const ctx=scenario({enabled:false,storedLicense:'b'.repeat(64)});
+ await tick();await tick();
+ assert.equal(ctx.activated,1);
+ assert.equal(ctx.buy.disabled,true);
+ assert.equal(ctx.buy.textContent,'프리미엄 이용 중');
+ assert.equal(ctx.calls.length,0);
+});
+test('Build31: temporarily unavailable Toss verification never triggers duplicate purchase',async()=>{
+ const original='c'.repeat(64);
+ const ctx=scenario({storedLicense:original,licenseStatus:503});
+ await tick();await tick();
+ assert.equal(ctx.activated,0);
+ assert.equal(ctx.buy.disabled,true);
+ assert.equal(ctx.calls.length,0);
+ assert.equal(ctx.local.get('moment_premium_receipt_v1'),original);
+ assert.match(ctx.status.textContent,/중복 결제하지 마세요/);
+});
+test('Build31: refunded receipt removed and buyer may purchase a new TEST order',async()=>{
+ const ctx=scenario({storedLicense:'d'.repeat(64),licenseStatus:401});
+ await tick();await tick();
+ assert.equal(ctx.local.has('moment_premium_receipt_v1'),false);
+ assert.equal(ctx.buy.disabled,false);
 });
