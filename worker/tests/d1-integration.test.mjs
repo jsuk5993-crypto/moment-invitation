@@ -3,12 +3,19 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import worker from '../src/worker.mjs';
+import {webcrypto as testCrypto} from 'node:crypto';
+const TEST_STAGE_SECRET='test-only-stage-key-for-fixtures-32-characters';
+const TEST_STAGE_EXPIRY=String(Date.now()+7*60*60*1000);
+const TEST_STAGE_KEY=await testCrypto.subtle.importKey('raw',new TextEncoder().encode(TEST_STAGE_SECRET),{name:'HMAC',hash:'SHA-256'},false,['sign']);
+const TEST_STAGE_SIG=Buffer.from(await testCrypto.subtle.sign('HMAC',TEST_STAGE_KEY,new TextEncoder().encode('moment-stage-1:'+TEST_STAGE_EXPIRY))).toString('hex');
+const TEST_STAGE_COOKIE='__Host-moment_stage='+TEST_STAGE_EXPIRY+'.'+TEST_STAGE_SIG;
+
 
 const ORIGIN = 'https://jsuk5993-crypto.github.io';
 const schema = readFileSync(new URL('../sql/schema.sql', import.meta.url), 'utf8');
 const API='https://api.moment.test';
 const request = (path,method='GET',body,token,headers={}) => new Request(API+path, {
-  method, headers:{Origin:ORIGIN, ...(body!==undefined?{'content-type':'application/json'}:{}),...(token?{authorization:'Bearer '+token}:{}),...headers},
+  method, headers:{Origin:ORIGIN,cookie:TEST_STAGE_COOKIE, ...(body!==undefined?{'content-type':'application/json'}:{}),...(token?{authorization:'Bearer '+token}:{}),...headers},
   body: body===undefined ? undefined : JSON.stringify(body)
 });
 const parsed = async(resp) => ({status:resp.status, body:await resp.json()});
@@ -21,7 +28,7 @@ function makeEnvironment() {
       async run(){const result=sqlite.prepare(sql).run(...values);return {meta:{changes:result.changes}}}
     }}}}
   };
-  const env={ PAYMENTS_ACTIVE:'true',PAYMENTS_MODE:'test',PUBLIC_ORIGIN:ORIGIN,
+  const env={ TEST_ACCESS_REQUIRED:'true',TEST_ACCESS_SECRET:TEST_STAGE_SECRET,PAYMENTS_ACTIVE:'true',PAYMENTS_MODE:'test',PUBLIC_ORIGIN:ORIGIN,
     TOSS_CLIENT_KEY:'test_ck_mock_123',TOSS_SECRET_KEY:'test_sk_mock_123',
     DB, PREMIUM_ASSETS:{async get(key){if(key==='premium/disco.webp')return {body:new Blob(['WEBP'],{type:'image/webp'}).stream()};return null;}},
     ADMIN_SECRET:'integration-only-secret' };

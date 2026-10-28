@@ -96,7 +96,8 @@ test('Build19 refuses widget-only gck/gsk keys for payment() checkout',async()=>
  assert.equal(info.secretKeyConfigured,false);
  assert.equal(info.paymentsEnabled,false);
  const cfg=await app.fetch(req('GET','/api/config'),mismatched);
- assert.equal((await cfg.json()).enabled,false);
+ assert.equal(cfg.status,503);
+ assert.equal((await cfg.json()).error,'test_access_unconfigured');
 });
 
 test('Build23 setup diagnostics isolate the stage password and disabled switch without returning secrets',async()=>{

@@ -79,7 +79,38 @@ test('Build22: accidentally setting LIVE while staging never enables checkout',a
  const live={...env,PAYMENTS_ACTIVE:'true',PAYMENTS_MODE:'live',TOSS_CLIENT_KEY:'live_ck_qa',
    TOSS_SECRET_KEY:'live_sk_qa',DB:{},PREMIUM_ASSETS:{}};
  const response=await worker.fetch(req('/api/config',{headers:{cookie:await cookie()}}),live);
- assert.notEqual(response.status,200);
+ assert.equal(response.status,200);
+ assert.equal((await response.json()).enabled,false);
  const setup=await worker.fetch(req('/api/payment-setup'),live);
  assert.equal((await setup.json()).paymentsEnabled,false);
+});
+
+test('Build24 fail-closed: disabling stage flag cannot enable public test checkout',async()=>{
+ const unsafe={...env,TEST_ACCESS_REQUIRED:'false',PAYMENTS_ACTIVE:'true',
+  TOSS_CLIENT_KEY:'test_ck_demo',TOSS_SECRET_KEY:'test_sk_demo',DB:{},PREMIUM_ASSETS:{}};
+ const diag=await worker.fetch(req('/api/payment-setup'),unsafe);
+ const setup=await diag.json();
+ assert.equal(setup.clientKeyConfigured,true);
+ assert.equal(setup.secretKeyConfigured,true);
+ assert.equal(setup.paymentSwitchActive,true);
+ assert.equal(setup.testAccessRequired,false);
+ assert.equal(setup.testAccessReady,false);
+ assert.equal(setup.paymentsEnabled,false);
+ const page=await worker.fetch(req('/'),unsafe);
+ assert.equal(page.status,503);
+ const cfg=await worker.fetch(req('/api/config'),unsafe);
+ assert.equal(cfg.status,503);
+ assert.equal((await cfg.json()).error,'test_access_unconfigured');
+ const order=await worker.fetch(req('/api/orders',{method:'POST',headers:{'content-type':'application/json'},body:'{}'}),unsafe);
+ assert.equal(order.status,503);
+ const asset=await worker.fetch(req('/api/assets/disco'),unsafe);
+ assert.equal(asset.status,503);
+});
+test('Build24 fail-closed: short stage secret cannot enable test payments',async()=>{
+ const invalid={...env,TEST_ACCESS_SECRET:'short',PAYMENTS_ACTIVE:'true',
+  TOSS_CLIENT_KEY:'test_ck_demo',TOSS_SECRET_KEY:'test_sk_demo',DB:{},PREMIUM_ASSETS:{}};
+ const setup=await (await worker.fetch(req('/api/payment-setup'),invalid)).json();
+ assert.equal(setup.paymentsEnabled,false);
+ const order=await worker.fetch(req('/api/orders',{method:'POST',headers:{'content-type':'application/json'},body:'{}'}),invalid);
+ assert.equal(order.status,503);
 });
