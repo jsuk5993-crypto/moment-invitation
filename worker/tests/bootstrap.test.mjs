@@ -81,7 +81,8 @@ test('Build19 payment readiness exposes only key-format booleans, with checkout 
  const response=await app.fetch(req('GET','/api/payment-setup'),valid);
  assert.equal(response.status,200);
  assert.deepEqual(await response.json(),{ok:true,mode:'test',clientKeyConfigured:true,
-   secretKeyConfigured:true,orderDatabaseBound:true,premiumStorageBound:true,paymentsEnabled:false});
+   secretKeyConfigured:true,orderDatabaseBound:true,premiumStorageBound:true,paymentSwitchActive:false,
+   testAccessRequired:false,testAccessReady:false,publicOriginConfigured:true,paymentsEnabled:false});
  const responseText=await (await app.fetch(req('GET','/api/payment-setup'),valid)).text();
  assert.equal(responseText.includes('test_ck_example'),false);
  assert.equal(responseText.includes('test_sk_example'),false);
@@ -96,4 +97,25 @@ test('Build19 refuses widget-only gck/gsk keys for payment() checkout',async()=>
  assert.equal(info.paymentsEnabled,false);
  const cfg=await app.fetch(req('GET','/api/config'),mismatched);
  assert.equal((await cfg.json()).enabled,false);
+});
+
+test('Build23 setup diagnostics isolate the stage password and disabled switch without returning secrets',async()=>{
+ const base={...env,PAYMENTS_ACTIVE:'true',TEST_ACCESS_REQUIRED:'true',TEST_ACCESS_SECRET:'a'.repeat(32),
+  TOSS_CLIENT_KEY:'test_ck_secret-never-display',TOSS_SECRET_KEY:'test_sk_secret-never-display',
+  DB:{},PREMIUM_ASSETS:{}};
+ const ready=await app.fetch(req('GET','/api/payment-setup'),base);
+ const checks=await ready.json();
+ assert.equal(checks.paymentsEnabled,true);
+ assert.equal(checks.paymentSwitchActive,true);
+ assert.equal(checks.testAccessRequired,true);
+ assert.equal(checks.testAccessReady,true);
+ const raw=JSON.stringify(checks);
+ assert.equal(raw.includes(base.TEST_ACCESS_SECRET),false);
+ assert.equal(raw.includes(base.TOSS_SECRET_KEY),false);
+ const short=await (await app.fetch(req('GET','/api/payment-setup'),{...base,TEST_ACCESS_SECRET:'short'})).json();
+ assert.equal(short.testAccessReady,false);
+ assert.equal(short.paymentsEnabled,false);
+ const off=await (await app.fetch(req('GET','/api/payment-setup'),{...base,PAYMENTS_ACTIVE:'false'})).json();
+ assert.equal(off.paymentSwitchActive,false);
+ assert.equal(off.paymentsEnabled,false);
 });

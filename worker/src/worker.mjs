@@ -117,6 +117,10 @@ async function handle(req, env, pathname) {
     const secretKeyConfigured = !!prefix && typeof env.TOSS_SECRET_KEY === 'string' && env.TOSS_SECRET_KEY.startsWith(prefix + 'sk_');
     return json({ok:true,mode,clientKeyConfigured,secretKeyConfigured,
       orderDatabaseBound:!!env.DB,premiumStorageBound:!!env.PREMIUM_ASSETS,
+      paymentSwitchActive:env.PAYMENTS_ACTIVE==='true',
+      testAccessRequired:env.TEST_ACCESS_REQUIRED==='true',
+      testAccessReady:stageGateReady(env),
+      publicOriginConfigured:!!env.PUBLIC_ORIGIN,
       paymentsEnabled:isEnabled(env)});
   }
   if (pathname === '/api/config' && req.method === 'GET') {
