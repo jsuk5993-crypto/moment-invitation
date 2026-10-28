@@ -127,3 +127,11 @@ test('RC1 LIVE: one-time recovery file and receipt token are isolated from TEST 
  assert.equal(buyer.local.has('moment_premium_receipt_v1'),false);
  assert.equal(buyer.orderBodies.length,0);
 });
+
+test('RC1 storefront: no legacy BUILD or TEST coming-soon claims in main customer page',()=>{
+ const html=readFileSync(new URL('../../site-live/index.html',import.meta.url),'utf8');
+ for(const phrase of ["A PRODUCT IN TESTING","기존 Build 5 디자인","PREMIUM / 상품 준비 중","1회 구매 가정","출시 미정 · 현재 결제 불가","결제 준비 중이므로 미리보기만 가능합니다","결제 후 고화질 PNG 저장 제공 예정"])assert.equal(html.includes(phrase),false,'old copy: '+phrase);
+ assert.match(html,/PREMIUM \/ 1회 구매/);
+ assert.match(html,/프리미엄 PNG 2장 ZIP 저장/);
+ assert.match(html,/구매 및 결제 관련 정보는 별도로 관리됩니다/);
+});

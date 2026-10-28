@@ -27,6 +27,11 @@ for(const path of publicFiles){
   errors.push('Secret key prefix found in public site: '+path);
 }
 const scripts=read('site-live/payment/payment-client.js'),html=read('site-live/index.html');
+const obsoleteCopy=["A PRODUCT IN TESTING","기존 Build 5 디자인","PREMIUM / 상품 준비 중","1회 구매 가정","출시 미정 · 현재 결제 불가","결제 준비 중이므로 미리보기만 가능합니다","결제 후 고화질 PNG 저장 제공 예정"];
+for(const phrase of obsoleteCopy)if(html.includes(phrase))errors.push('Outdated storefront copy: '+phrase);
+if(html.includes('A PRODUCT IN TESTING')||html.includes('TEST 전용'))errors.push('Customer-facing TEST wording');
+if(!html.includes('PREMIUM / 1회 구매'))errors.push('Premium 9900 KRW product pricing missing');
+if(!html.includes('구매 및 결제 관련 정보는 별도로 관리됩니다'))errors.push('Buyer-data disclosure warning missing');
 if(!scripts.includes('moment_live_premium_receipt_v1'))errors.push('LIVE token storage is not separated');
 if(!scripts.includes("cfg.mode!=='live'"))errors.push('LIVE SDK mode check missing');
 if(!html.includes('merchant.html')||!html.includes('privacy.html')||!html.includes('support.html'))errors.push('Seller/legal/support navigation missing');
