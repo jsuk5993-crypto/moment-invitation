@@ -114,11 +114,11 @@ test('D1 integration: tampered price, order, and wrong origin rejected',async()=
 
 test('D1 integration: malformed JSON and over-limit payload return 400, never 500',async()=>{
  const {env,sqlite}=makeEnvironment();try{
-  const malformed=new Request(API+'/api/orders',{method:'POST',headers:{Origin:ORIGIN,'content-type':'application/json'},body:'{oops'});
+  const malformed=new Request(API+'/api/orders',{method:'POST',headers:{Origin:ORIGIN,cookie:TEST_STAGE_COOKIE,'content-type':'application/json'},body:'{oops'});
   assert.equal((await worker.fetch(malformed,env)).status,400);
   const tooLong=await worker.fetch(request('/api/orders','POST',{payload:'x'.repeat(8500)}),env);
   assert.equal(tooLong.status,400);
-  const wrongType=new Request(API+'/api/orders',{method:'POST',headers:{Origin:ORIGIN,'content-type':'text/plain'},body:'hello'});
+  const wrongType=new Request(API+'/api/orders',{method:'POST',headers:{Origin:ORIGIN,cookie:TEST_STAGE_COOKIE,'content-type':'text/plain'},body:'hello'});
   assert.equal((await worker.fetch(wrongType,env)).status,400);
  }finally{sqlite.close()}
 });

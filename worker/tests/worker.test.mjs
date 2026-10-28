@@ -98,7 +98,7 @@ test('refunded order loses license',async()=>{
  };
  try{
   const paid=await parse(await confirm(e,body));
-  const reconcile=await parse(await worker.fetch(new Request('https://pay.example.workers.dev/api/reconcile',{method:'POST',headers:{Origin:ORIGIN,'content-type':'application/json','x-admin-secret':e.ADMIN_SECRET},body:JSON.stringify({orderId:body.orderId})}),e));
+  const reconcile=await parse(await worker.fetch(new Request('https://pay.example.workers.dev/api/reconcile',{method:'POST',headers:{Origin:ORIGIN,cookie:TEST_STAGE_COOKIE,'content-type':'application/json','x-admin-secret':e.ADMIN_SECRET},body:JSON.stringify({orderId:body.orderId})}),e));
   assert.equal(reconcile.body.status,'refunded');
   assert.equal((await worker.fetch(req('/api/license','GET',null,paid.body.license),e)).status,401);
  }finally{globalThis.fetch=oldFetch;}
