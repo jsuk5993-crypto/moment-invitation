@@ -9,6 +9,11 @@ PAYMENTS_MODE = "test"
 TEST_ACCESS_REQUIRED = "true"
 PUBLIC_ORIGIN = "https://jsuk5993-crypto.github.io"
 
+# Values must never be saved in GitHub or the [vars] block.
+# Wrangler validates that these encrypted Cloudflare Secrets exist before deploying.
+[secrets]
+required = ["TOSS_CLIENT_KEY", "TOSS_SECRET_KEY", "TEST_ACCESS_SECRET"]
+
 [[d1_databases]]
 binding = "DB"
 database_name = "moment-orders"
