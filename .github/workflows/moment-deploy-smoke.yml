@@ -16,30 +16,37 @@ permissions:
 jobs:
   verify-stage-version:
     runs-on: ubuntu-latest
-    timeout-minutes: 3
+    timeout-minutes: 4
     steps:
-      - name: Check public non-sensitive diagnostics on Cloudflare TEST Worker
+      - name: Poll public Cloudflare TEST diagnostics for matching deployment
         shell: bash
         run: |
           set -euo pipefail
           BASE="https://moment-payments-test.jsuk5993-1ae.workers.dev"
-          curl --fail-with-body --silent --show-error --retry 2 --connect-timeout 8 --max-time 20 \
-            -H 'Origin: https://jsuk5993-crypto.github.io' -H 'Cache-Control: no-cache' \
-            "$BASE/api/health" > health.json
-          curl --fail-with-body --silent --show-error --retry 2 --connect-timeout 8 --max-time 20 \
-            -H 'Origin: https://jsuk5993-crypto.github.io' -H 'Cache-Control: no-cache' \
-            "$BASE/api/payment-setup" > setup.json
-          python3 - <<'PY'
+          for attempt in 1 2 3 4 5 6; do
+            echo "TEST Worker version check attempt $attempt of 6"
+            if curl -fsS --retry 2 --connect-timeout 8 --max-time 20 \
+                -H 'Origin: https://jsuk5993-crypto.github.io' "$BASE/api/health" -o health.json \
+              && curl -fsS --retry 2 --connect-timeout 8 --max-time 20 \
+                -H 'Origin: https://jsuk5993-crypto.github.io' "$BASE/api/payment-setup" -o setup.json \
+              && python3 - <<'PY'
           import json
           health=json.load(open('health.json'))
           setup=json.load(open('setup.json'))
           print('Cloudflare TEST health build:', health.get('build'))
-          print('Cloudflare TEST payment setup build:', setup.get('build'))
+          print('Cloudflare TEST setup build:', setup.get('build'))
           print('Mode:', setup.get('mode'), 'Staging gate required:', setup.get('testAccessRequired'))
-          assert health.get('ok') is True, 'Worker health check not ready'
-          assert health.get('build') == '36', 'Worker deployment is not Build 36'
-          assert setup.get('build') == '36', 'Frontend/backend deployment version mismatch'
-          assert setup.get('mode') == 'test', 'TEST Worker has the wrong payment mode'
-          assert setup.get('testAccessRequired') is True, 'Staging gate not required'
-          print('PASS: public diagnostic confirms Build 36 TEST Worker')
+          assert health.get('ok') is True
+          assert health.get('build') == '36'
+          assert setup.get('build') == '36'
+          assert setup.get('mode') == 'test'
+          assert setup.get('testAccessRequired') is True
+          print('PASS: live TEST Worker diagnostics match Build 36')
           PY
+            then
+              exit 0
+            fi
+            if [ "$attempt" -lt 6 ]; then sleep 10; fi
+          done
+          echo "::error::TEST Worker build 36 has not been confirmed; check Cloudflare deployment."
+          exit 1
