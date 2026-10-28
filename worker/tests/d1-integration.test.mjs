@@ -22,7 +22,7 @@ function makeEnvironment() {
     }}}}
   };
   const env={ PAYMENTS_ACTIVE:'true',PAYMENTS_MODE:'test',PUBLIC_ORIGIN:ORIGIN,
-    TOSS_CLIENT_KEY:'test_gck_mock_123',TOSS_SECRET_KEY:'test_gsk_mock_123',
+    TOSS_CLIENT_KEY:'test_ck_mock_123',TOSS_SECRET_KEY:'test_sk_mock_123',
     DB, PREMIUM_ASSETS:{async get(key){if(key==='premium/disco.webp')return {body:new Blob(['WEBP'],{type:'image/webp'}).stream()};return null;}},
     ADMIN_SECRET:'integration-only-secret' };
   return {env,sqlite};

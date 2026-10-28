@@ -34,7 +34,7 @@ class FakeDB {
     }
   })};}
 }
-function env(){return {PAYMENTS_ACTIVE:'true',PAYMENTS_MODE:'test',PUBLIC_ORIGIN:ORIGIN,TOSS_CLIENT_KEY:'test_gck_dummy',TOSS_SECRET_KEY:'test_gsk_dummy',DB:new FakeDB(),PREMIUM_ASSETS:{get:async(k)=>({body:new Blob(['test image bytes'],{type:'image/webp'}).stream()})},ADMIN_SECRET:'not-public-secret'};}
+function env(){return {PAYMENTS_ACTIVE:'true',PAYMENTS_MODE:'test',PUBLIC_ORIGIN:ORIGIN,TOSS_CLIENT_KEY:'test_ck_dummy',TOSS_SECRET_KEY:'test_sk_dummy',DB:new FakeDB(),PREMIUM_ASSETS:{get:async(k)=>({body:new Blob(['test image bytes'],{type:'image/webp'}).stream()})},ADMIN_SECRET:'not-public-secret'};}
 const req=(path,method='GET',body,token,origin=ORIGIN)=>new Request('https://pay.example.workers.dev'+path,{method,headers:{Origin:origin,...(body?{'content-type':'application/json'}:{}),...(token?{Authorization:'Bearer '+token}:{})},body:body?JSON.stringify(body):undefined});
 const parse=async(resp)=>({status:resp.status,body:await resp.json()});
 const create=async(e)=>parse(await worker.fetch(req('/api/orders','POST',{}),e));

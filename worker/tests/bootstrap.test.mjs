@@ -74,3 +74,26 @@ test('Build18 R2 reports missing assets safely and keeps payment disabled',async
  assert.equal(order.status,503);
  assert.equal((await order.json()).error,'disabled');
 });
+
+test('Build19 payment readiness exposes only key-format booleans, with checkout still OFF',async()=>{
+ const valid={...env,PAYMENTS_ACTIVE:'false',TOSS_CLIENT_KEY:'test_ck_example',TOSS_SECRET_KEY:'test_sk_example',
+   DB:{},PREMIUM_ASSETS:{}};
+ const response=await app.fetch(req('GET','/api/payment-setup'),valid);
+ assert.equal(response.status,200);
+ assert.deepEqual(await response.json(),{ok:true,mode:'test',clientKeyConfigured:true,
+   secretKeyConfigured:true,orderDatabaseBound:true,premiumStorageBound:true,paymentsEnabled:false});
+ const responseText=await (await app.fetch(req('GET','/api/payment-setup'),valid)).text();
+ assert.equal(responseText.includes('test_ck_example'),false);
+ assert.equal(responseText.includes('test_sk_example'),false);
+});
+test('Build19 refuses widget-only gck/gsk keys for payment() checkout',async()=>{
+ const mismatched={...env,PAYMENTS_ACTIVE:'true',TOSS_CLIENT_KEY:'test_gck_example',
+   TOSS_SECRET_KEY:'test_gsk_example',DB:{},PREMIUM_ASSETS:{}};
+ const status=await app.fetch(req('GET','/api/payment-setup'),mismatched);
+ const info=await status.json();
+ assert.equal(info.clientKeyConfigured,false);
+ assert.equal(info.secretKeyConfigured,false);
+ assert.equal(info.paymentsEnabled,false);
+ const cfg=await app.fetch(req('GET','/api/config'),mismatched);
+ assert.equal((await cfg.json()).enabled,false);
+});

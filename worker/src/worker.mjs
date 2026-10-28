@@ -10,7 +10,15 @@ const now = () => Date.now();
 const randomSecret = () => Array.from(crypto.getRandomValues(new Uint8Array(32)), x => x.toString(16).padStart(2, '0')).join('');
 const sha = async (s) => Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s))), x => x.toString(16).padStart(2,'0')).join('');
 const normalizeOrigin = (s) => {try {return new URL(s).origin;} catch {return ''}};
-const isEnabled = (env) => env.PAYMENTS_ACTIVE === 'true' && ['test','live'].includes(env.PAYMENTS_MODE) && !!env.TOSS_CLIENT_KEY && !!env.TOSS_SECRET_KEY && !!env.DB && !!env.PREMIUM_ASSETS && !!env.PUBLIC_ORIGIN && ((env.PAYMENTS_MODE === 'live' && env.TOSS_CLIENT_KEY.startsWith('live_') && env.TOSS_SECRET_KEY.startsWith('live_')) || (env.PAYMENTS_MODE === 'test' && env.TOSS_CLIENT_KEY.startsWith('test_') && env.TOSS_SECRET_KEY.startsWith('test_')));
+// The SDK below uses tossPayments.payment(), which requires API-individual ck/sk keys.
+// gck/gsk are for widgets, not for the legacy payment() SDK.
+const keyPairReady = (env) => {
+  const prefix = env.PAYMENTS_MODE === 'test' ? 'test_' : env.PAYMENTS_MODE === 'live' ? 'live_' : '';
+  return !!prefix && typeof env.TOSS_CLIENT_KEY === 'string' && typeof env.TOSS_SECRET_KEY === 'string'
+    && env.TOSS_CLIENT_KEY.startsWith(prefix + 'ck_') && env.TOSS_SECRET_KEY.startsWith(prefix + 'sk_');
+};
+const isEnabled = (env) => env.PAYMENTS_ACTIVE === 'true' && keyPairReady(env)
+  && !!env.DB && !!env.PREMIUM_ASSETS && !!env.PUBLIC_ORIGIN;
 const cors = (origin) => ({'access-control-allow-origin':origin, 'vary':'Origin', 'access-control-allow-methods':'GET,POST,OPTIONS', 'access-control-allow-headers':'content-type,authorization', 'access-control-max-age':'600'});
 class ClientInputError extends Error {}
 const errors = { disabled: '결제 연결 준비 중입니다.', invalid: '요청 정보를 확인해 주세요.', denied: '구매 권한이 확인되지 않았습니다.', unexpected: '결제 상태 확인이 지연되고 있습니다. 중복 결제하지 말고 고객센터에 문의해 주세요.' };
@@ -98,6 +106,16 @@ async function handle(req, env, pathname) {
     } catch {
       return json({ok:false, storageConnected:true, assetsReady:0, assetsExpected:ASSETS.size},503);
     }
+  }
+  if (pathname === '/api/payment-setup' && req.method === 'GET') {
+    // Only returns booleans. NEVER echo client/secret keys or payment credentials.
+    const mode = env.PAYMENTS_MODE === 'test' ? 'test' : env.PAYMENTS_MODE === 'live' ? 'live' : 'off';
+    const prefix = mode === 'test' ? 'test_' : mode === 'live' ? 'live_' : '';
+    const clientKeyConfigured = !!prefix && typeof env.TOSS_CLIENT_KEY === 'string' && env.TOSS_CLIENT_KEY.startsWith(prefix + 'ck_');
+    const secretKeyConfigured = !!prefix && typeof env.TOSS_SECRET_KEY === 'string' && env.TOSS_SECRET_KEY.startsWith(prefix + 'sk_');
+    return json({ok:true,mode,clientKeyConfigured,secretKeyConfigured,
+      orderDatabaseBound:!!env.DB,premiumStorageBound:!!env.PREMIUM_ASSETS,
+      paymentsEnabled:isEnabled(env)});
   }
   if (pathname === '/api/config' && req.method === 'GET') {
     const enabled=isEnabled(env);
