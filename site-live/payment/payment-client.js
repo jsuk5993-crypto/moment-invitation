@@ -273,7 +273,7 @@
   function ensureTossSDK(){return new Promise((resolve,reject)=>{if(typeof window.TossPayments==='function')return resolve();const script=document.createElement('script');script.src='https://js.tosspayments.com/v2/standard';script.onload=resolve;script.onerror=()=>reject(Error('SDK_load_failed'));document.head.appendChild(script);});}
   async function init(){
     if(!available()){say('실제 결제 서버가 설정되지 않았어요. 판매는 아직 시작되지 않았습니다.');return;}
-    if(!window.MOMENT_MERCHANT?.ready){say('판매자 정보 및 필수 고지가 아직 확정되지 않았습니다. 베이직은 무료로 사용 가능합니다.');return;}
+
     try{
       const res=await get('/api/config');
       if(!res.ok){say('테스트 서버 접근이 확인되지 않았어요. 비공개 로그인 상태를 확인해 주세요.');return;}
@@ -284,6 +284,9 @@
         try{if(await unlock(receipt))return;}
         catch(e){say(e.message||'구매 권한 확인이 지연돼요. 중복 결제하지 마세요.');return;}
       }
+      // Seller approval only prevents NEW purchases. Never block existing
+      // buyers or self-custody recovery when storefront approval is paused.
+      if(!window.MOMENT_MERCHANT?.ready){say('판매자 정보 및 필수 고지가 아직 확정되지 않아 새 결제를 받지 않습니다. 기존 구매자는 이용할 수 있어요.');return;}
       if(!cfg.enabled){say('실제 판매는 아직 시작되지 않았거나 일시 중단 중입니다. 베이직 디자인은 무료로 사용할 수 있어요.');return;}
       if(!Number.isInteger(cfg.amount)||cfg.amount!==9900 || !cfg.clientKey){say('실결제 설정을 확인할 수 없어 구매가 중단됐습니다.');return;}
       try{await ensureTossSDK()}catch{say('결제 화면을 불러오지 못했습니다. 새로고침해 주세요.');return;}

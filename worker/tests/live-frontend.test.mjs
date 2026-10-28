@@ -4,7 +4,7 @@ import {readFileSync} from 'node:fs';
 import {runInNewContext} from 'node:vm';
 import {webcrypto} from 'node:crypto';
 const code=readFileSync(new URL('../../site-live/payment/payment-client.js',import.meta.url),'utf8');
-function scenario({mode='live',enabled=true,storedLicense=null,licenseStatus=200,pendingConfirmation=false,recoveryIssueFailsAfterFirst=false}={}){
+function scenario({mode='live',enabled=true,storedLicense=null,licenseStatus=200,pendingConfirmation=false,recoveryIssueFailsAfterFirst=false,merchantReady=true}={}){
  const buy={disabled:true,textContent:'',click:null,addEventListener(kind,cb){if(kind==='click')this.click=cb}};
  const status={textContent:''};
  const newControl=()=>({hidden:false,disabled:false,textContent:'',value:'',click:null,addEventListener(k,cb){if(k==='click')this.click=cb;}});
@@ -67,7 +67,7 @@ function scenario({mode='live',enabled=true,storedLicense=null,licenseStatus=200
   static createObjectURL(blob){downloadedFiles.push({blob});return 'blob:mock-recovery-file-'+downloadedFiles.length;}
   static revokeObjectURL(url){revokedUrls.push(url);}
  }
- const window={MOMENT_MERCHANT:{ready:true},confirm:()=>true,MOMENT_PAYMENT_API:'https://example.workers.dev',
+ const window={MOMENT_MERCHANT:{ready:merchantReady},confirm:()=>true,MOMENT_PAYMENT_API:'https://example.workers.dev',
   MOMENT_ACCESS:{async activate(files){activated++;assert.equal(Object.keys(files).length,6)}},TossPayments};
  const document={baseURI:'https://example.workers.dev/',getElementById:id=>id==='premiumActions'?note:null,
    body:{appendChild(el){}},
@@ -134,4 +134,18 @@ test('RC1 storefront: no legacy BUILD or TEST coming-soon claims in main custome
  assert.match(html,/PREMIUM \/ 1회 구매/);
  assert.match(html,/프리미엄 PNG 2장 ZIP 저장/);
  assert.match(html,/구매 및 결제 관련 정보는 별도로 관리됩니다/);
+});
+ 
+test('RC1 paused seller profile: existing paid buyers still restore full premium and cannot be charged again',async()=>{
+ const buyer=scenario({enabled:false,merchantReady:false,storedLicense:'b'.repeat(64)});
+ await tick();await tick();
+ assert.equal(buyer.activated,1);
+ assert.equal(buyer.buy.textContent,'프리미엄 이용 중');
+ assert.equal(buyer.calls.length,0);
+ const newcomer=scenario({enabled:true,merchantReady:false});
+ await tick();
+ assert.equal(newcomer.buy.disabled,true);
+ assert.equal(newcomer.calls.length,0);
+ assert.equal(newcomer.orderBodies.length,0);
+ assert.match(newcomer.status.textContent,/새 결제를 받지 않습니다/);
 });
