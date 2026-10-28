@@ -167,16 +167,19 @@
   recoveryIssueBtn.addEventListener('click',async()=>{
     const receipt=localStorage.getItem(tokenStorageKey);
     if(!receipt){sayRecovery('구매 권한을 먼저 확인해 주세요.');return;}
-    if(!window.confirm('새 복원코드를 발급할까요? 이전에 발급한 코드는 무효화됩니다.'))return;
+    if(recoveryIssueBtn.disabled)return;
+    if(!window.confirm('새 복원코드를 발급하면 이전 복원코드는 즉시 사용할 수 없어요. 새 코드를 저장하지 않으면 기기 변경이 어려울 수 있습니다. 계속할까요?'))return;
     recoveryIssueBtn.disabled=true;
-    recoveryCodeBox.hidden=true;plainRecoveryCode='';
+    // Never discard a successfully issued secret until the server confirms rotation.
+    // A transient 503 should still allow the buyer to copy the previous code.
+    sayRecovery('기존 구매 상태와 복원코드를 확인하고 있어요.');
     sayRecovery('토스 구매 상태 확인 후 복원코드를 발급하고 있어요.');
     try{
       const res=await get('/api/recovery/issue',{method:'POST',headers:{authorization:'Bearer '+receipt}});
       const data=await res.json();
       if(!res.ok||!/^[a-f0-9]{64}$/.test(data.recoveryCode||''))throw Error(data.message||'코드를 발급하지 못했어요.');
       showRecoveryCode(data.recoveryCode);
-      sayRecovery('발급 완료. 코드를 지금 안전하게 복사해 두세요.');
+      sayRecovery('새 코드 발급 완료. 이전 코드는 무효화됐어요. 새 코드를 지금 복사하거나 TXT 파일로 저장해 주세요.');
     }catch(e){sayRecovery(e.message||'복원코드를 발급하지 못했습니다.');}
     finally{recoveryIssueBtn.disabled=false;}
   });
