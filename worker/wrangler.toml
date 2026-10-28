@@ -16,6 +16,10 @@ binding = "DB"
 database_name = "moment-orders"
 database_id = "c86c6827-7982-457f-9049-60991d782a85"
 
-# R2 is intentionally not bound until the private assets bucket exists.
-# See wrangler.toml.example for the future private R2 configuration.
+# Build 18: private R2 premium backgrounds uploaded under premium/*.webp.
+[[r2_buckets]]
+binding = "PREMIUM_ASSETS"
+bucket_name = "moment-premium-private"
+
+# Never expose an r2.dev public URL for this bucket.
 # Never write TOSS_SECRET_KEY or ADMIN_SECRET in this public file.

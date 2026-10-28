@@ -85,6 +85,20 @@ async function handle(req, env, pathname) {
       return json({ok:false, databaseConnected:true, ordersTableReady:false},503);
     }
   }
+  if (pathname === '/api/r2-health' && req.method === 'GET') {
+    // Read-only probe: HEAD checks never return premium contents or R2 URLs.
+    if (!env.PREMIUM_ASSETS || typeof env.PREMIUM_ASSETS.head !== 'function') {
+      return json({ok:false, storageConnected:false, assetsReady:0, assetsExpected:ASSETS.size},503);
+    }
+    try {
+      const checks = await Promise.all([...ASSETS].map(design => env.PREMIUM_ASSETS.head('premium/' + design + '.webp')));
+      const ready = checks.filter(Boolean).length;
+      const ok = ready === ASSETS.size;
+      return json({ok, storageConnected:true, assetsReady:ready, assetsExpected:ASSETS.size},ok?200:503);
+    } catch {
+      return json({ok:false, storageConnected:true, assetsReady:0, assetsExpected:ASSETS.size},503);
+    }
+  }
   if (pathname === '/api/config' && req.method === 'GET') {
     const enabled=isEnabled(env);
     return json({ enabled, mode: enabled ? env.PAYMENTS_MODE : 'off', amount: PRICE_KRW, currency:'KRW', clientKey: enabled ? env.TOSS_CLIENT_KEY : null });
