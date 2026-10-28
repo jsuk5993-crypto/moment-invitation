@@ -4,3 +4,13 @@
 .moment-checkout button{width:100%;background:#674c8c;color:#fff;border:0;border-radius:10px;font-weight:750;font-size:15px;min-height:48px;cursor:pointer}
 .moment-checkout button:disabled{background:#b6aebd;cursor:not-allowed}
 .moment-payment-status{color:#826e8d!important;font-size:12px!important;margin:12px 0 0!important}
+
+/* Build 29: the test checkout is visible inside the dark-green PREMIUM pricing card. */
+.plan4.active .moment-checkout{margin-top:16px;padding:16px 0 0;background:transparent;border:0;border-top:1px solid #607564;border-radius:0;color:#f2f7ef}
+.plan4.active .moment-payment-topline{color:#d8e4ce;font-size:11px;letter-spacing:.075em}
+.plan4.active .moment-payment-topline span{color:#bfd0b8;font-weight:550;font-size:11px}
+.plan4.active .moment-payment-explain{color:#d9e7d7;margin:10px 0 12px;font-size:12px;line-height:1.7}
+.plan4.active #moment-buy{width:100%;min-height:52px;padding:12px;background:#e4eecf;color:#263d2b;border:0;border-radius:10px;font-size:14px;font-weight:800;box-shadow:0 4px 15px #0b1f121a}
+.plan4.active #moment-buy:hover:not(:disabled){background:#f1f8de}
+.plan4.active #moment-buy:disabled{background:#788b78;color:#e8eee5;box-shadow:none;cursor:not-allowed}
+.plan4.active #moment-pay-status{color:#d9e7d7!important;font-size:11px!important;line-height:1.65;margin:9px 0 0!important}

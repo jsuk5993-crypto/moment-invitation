@@ -8,7 +8,17 @@ function scenario({mode='test',enabled=true,storedLicense=null}={}){
  const buy={disabled:true,textContent:'',click:null,addEventListener(kind,cb){if(kind==='click')this.click=cb}};
  const status={textContent:''};
  const panel={innerHTML:'',className:'',querySelector:s=>s==='#moment-buy'?buy:status};
- const note={append(x){assert.equal(x,panel)}};
+ const note={innerHTML:''};
+ const planTitle={textContent:''},priceHint={textContent:''},badge={textContent:''},benefit={textContent:''};
+ const intro={textContent:''},policy={textContent:''},divider={textContent:''};
+ const plan={appended:null,append(x){assert.equal(x,panel);this.appended=x},
+   querySelector(selector){return new Map([['.plan-name',planTitle],['.money span',priceHint],['.pill-note',badge],['ul li:last-child',benefit]]).get(selector)||null;}};
+ const query=(selector)=>new Map([
+  ['#plans4 .pricing4 .plan4.active',plan],
+  ['#plans4 .business-intro p',intro],
+  ['#plans4 .test-explain',policy],
+  ['.collection-divider.paid small',divider]
+ ]).get(selector)||null;
  const local=new Map(storedLicense?[['moment_premium_receipt_v1',storedLicense]]:[]);
  const session=new Map(),calls=[];let activated=0;
  const TossPayments=key=>({payment:({customerKey})=>({requestPayment:async data=>calls.push({key,customerKey,data})})});
@@ -24,10 +34,10 @@ function scenario({mode='test',enabled=true,storedLicense=null}={}){
  const window={MOMENT_PAYMENT_API:'https://example.workers.dev',
   MOMENT_ACCESS:{async activate(files){activated++;assert.equal(Object.keys(files).length,6)}},TossPayments};
  const document={baseURI:'https://example.workers.dev/',getElementById:id=>id==='premiumActions'?note:null,
-   createElement:tag=>tag==='section'?panel:null};
+   querySelector:query,createElement:tag=>tag==='section'?panel:null};
  runInNewContext(code,{window,document,localStorage:{getItem:k=>local.get(k)||null,setItem:(k,v)=>local.set(k,v)},
    sessionStorage:{getItem:k=>session.get(k)||null,setItem:(k,v)=>session.set(k,v)},fetch,URL,Blob,crypto:webcrypto});
- return {buy,calls,session,get activated(){return activated}};
+ return {buy,calls,session,plan,planTitle,badge,policy,note,get activated(){return activated}};
 }
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
 test('Build22: test config enables only test checkout button',async()=>{
@@ -48,4 +58,15 @@ test('Build22: disabled API config never enables checkout',async()=>{
 test('Build22: receipt restores six premium images',async()=>{
  const ctx=scenario({storedLicense:'b'.repeat(64)});await tick();await tick();
  assert.equal(ctx.activated,1);assert.equal(ctx.buy.disabled,true);assert.equal(ctx.buy.textContent,'프리미엄 이용 중');
+});
+
+test('Build29: purchase button is visibly mounted on the PREMIUM pricing plan without selecting a theme',async()=>{
+ const ctx=scenario();await tick();
+ assert.ok(ctx.plan.appended);
+ assert.equal(ctx.plan.appended.querySelector('#moment-buy'),ctx.buy);
+ assert.equal(ctx.buy.disabled,false);
+ assert.match(ctx.planTitle.textContent,/TEST/);
+ assert.match(ctx.badge.textContent,/실제 청구 없음/);
+ assert.match(ctx.policy.textContent,/정식 판매는 아직/);
+ assert.match(ctx.note.innerHTML,/결제 카드로 이동/);
 });
