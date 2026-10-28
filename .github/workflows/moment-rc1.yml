@@ -1,0 +1,36 @@
+name: MOMENT RC1 unified release candidate
+
+on:
+  push:
+    branches:
+      - release/moment-rc1
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  full-test:
+    name: TEST & LIVE payment regression
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check syntax
+        run: cd worker && npm run check
+      - name: Run all tests
+        run: cd worker && npm test
+      - name: Static RC1 launch packaging (no real payments)
+        run: node release/scripts/preflight.mjs
+      - name: Verify production gate stays closed before seller and PG approval
+        shell: bash
+        run: |
+          if node release/scripts/preflight.mjs --go-live; then
+            echo "::error::An unapproved live launch incorrectly passed."
+            exit 1
+          else
+            echo "PASS: unapproved real-payment launch is correctly blocked."
+          fi

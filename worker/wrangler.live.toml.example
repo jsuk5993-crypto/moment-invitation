@@ -1,0 +1,41 @@
+# RC1 PRODUCTION EXAMPLE — DO NOT DEPLOY UNCHANGED.
+# Use a SEPARATE Cloudflare Worker named moment-payments-live.
+# A new LIVE D1 database and R2 bucket are REQUIRED (never reuse TEST).
+# Create real secrets in Cloudflare Dashboard, never commit values.
+name = "moment-payments-live"
+main = "src/worker.mjs"
+compatibility_date = "2026-10-20"
+keep_vars = true
+
+[vars]
+DEPLOYMENT_KIND = "public-live"
+PAYMENTS_MODE = "live"
+PAYMENTS_ACTIVE = "false"
+LIVE_LAUNCH_APPROVED = "false"
+LIVE_PG_APPROVED = "false"
+PUBLIC_ORIGIN = "https://YOUR-VERIFIED-LIVE-DOMAIN"
+SELLER_NAME = ""
+SELLER_REPRESENTATIVE = ""
+SELLER_REGISTRATION_NUMBER = ""
+SELLER_ECOMMERCE_REPORT = ""
+SELLER_ADDRESS = ""
+SELLER_PHONE = ""
+SELLER_EMAIL = ""
+
+# Required runtime secrets: TOSS_CLIENT_KEY (live_ck_*), TOSS_SECRET_KEY
+# (live_sk_*), ADMIN_SECRET. These must NEVER be copied from TEST.
+# Both LIVE_LAUNCH_APPROVED and LIVE_PG_APPROVED are manual release gates.
+
+[[d1_databases]]
+binding = "DB"
+database_name = "moment-orders-live"
+database_id = "FILL_WITH_NEW_LIVE_D1_ID"
+
+[[r2_buckets]]
+binding = "PREMIUM_ASSETS"
+bucket_name = "moment-premium-live-private"
+
+[assets]
+directory = "../site-live"
+binding = "STAGING_ASSETS"
+run_worker_first = true
