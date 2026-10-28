@@ -10,9 +10,9 @@ const start=html.indexOf('function b12PNGValid(bytes)');
 const end=html.indexOf('async function b12SaveCurrent()',start);
 assert.ok(start>0&&end>start,'Build39 PNG verification/ZIP source must be present');
 const crcStart=html.indexOf('const b12ZipTable=');
-assert.ok(crcStart>0&&crcStart<start);
+assert.ok(crcStart>start&&crcStart<end);
 const zipFunctions=html.slice(start,end);
-const zipCRCFunctions=html.slice(crcStart,start);
+const zipCRCFunctions='';
 function tools(){
  const sandbox={TextEncoder,Uint8Array,DataView,Blob,W,H};
  runInNewContext(zipCRCFunctions+zipFunctions+'this.out={b12PNGValid,b12Zip,b12CRC}',sandbox);
