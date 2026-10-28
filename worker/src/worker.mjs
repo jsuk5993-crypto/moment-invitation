@@ -20,12 +20,24 @@ const keyPairReady = (env) => {
   return !!prefix && typeof env.TOSS_CLIENT_KEY === 'string' && typeof env.TOSS_SECRET_KEY === 'string'
     && env.TOSS_CLIENT_KEY.startsWith(prefix + 'ck_') && env.TOSS_SECRET_KEY.startsWith(prefix + 'sk_');
 };
-// FAIL CLOSED: this Worker is a staging-only payment server.
- // Test checkout MUST NOT become public even when Cloudflare dashboard overrides Wrangler flags.
-const isReaderReady = (env) => env.PAYMENTS_MODE === 'test'
-  && stageGateReady(env) && !!env.DB && !!env.PREMIUM_ASSETS
+// RC1: isolated LIVE deployment must meet the seller/PG launch gate.
+const merchantFields=['SELLER_NAME','SELLER_REPRESENTATIVE','SELLER_ADDRESS','SELLER_PHONE','SELLER_EMAIL','SELLER_REGISTRATION_NUMBER','SELLER_ECOMMERCE_REPORT'];
+const merchantReady=(env)=>merchantFields.every(k=>typeof env[k]==='string'&&env[k].trim().length>=3
+  && !/^(TODO|TBD|PLACEHOLDER|미입력|NONE|예시|확인 필요)/i.test(env[k].trim()))
+  && /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(env.SELLER_EMAIL)
+  && /^\\d{3}-?\\d{2}-?\\d{5}$/.test(env.SELLER_REGISTRATION_NUMBER);
+const isProduction=(env)=>env.DEPLOYMENT_KIND==='public-live';
+const productionReady=(env)=>isProduction(env)&&env.PAYMENTS_MODE==='live'
+  && env.LIVE_LAUNCH_APPROVED==='true' && env.LIVE_PG_APPROVED==='true'
+  && merchantReady(env) && /^https:\/\//.test(env.PUBLIC_ORIGIN||'')
+  && !!env.DB && !!env.PREMIUM_ASSETS
+  && typeof env.TOSS_SECRET_KEY==='string' && env.TOSS_SECRET_KEY.startsWith('live_sk_');
+// TEST is still password-protected regardless of Cloudflare dashboard flags.
+// Production requires a separate Worker, DB, R2, keys, seller and manual launch approvals.
+const isReaderReady = (env) => (env.PAYMENTS_MODE === 'test'
+  && !isProduction(env) && stageGateReady(env) && !!env.DB && !!env.PREMIUM_ASSETS
   && typeof env.TOSS_SECRET_KEY === 'string' && env.TOSS_SECRET_KEY.startsWith('test_sk_')
-  && !!env.PUBLIC_ORIGIN;
+  && !!env.PUBLIC_ORIGIN) || productionReady(env);
 // Enabling/disabling new checkout must NEVER revoke access for earlier paid orders.
 const isEnabled = (env) => env.PAYMENTS_ACTIVE === 'true' && isReaderReady(env)
   && keyPairReady(env);
@@ -384,20 +396,41 @@ async function handle(req, env, pathname) {
 export default {
   async fetch(req, env) {
     const pathname=new URL(req.url).pathname;
-    if(!pathname.startsWith('/api/'))return handleStagingRequest(req,env,pathname);
+    if(!pathname.startsWith('/api/')){
+      if(isProduction(env)){
+        if(env.PAYMENTS_MODE!=='live'||!env.STAGING_ASSETS?.fetch)
+          return new Response('판매 사이트 준비 중입니다.',{status:503,headers:{'cache-control':'no-store'}});
+        const staticResponse=await env.STAGING_ASSETS.fetch(req);
+        const out=new Response(staticResponse.body,staticResponse);
+        out.headers.set('x-content-type-options','nosniff');
+        out.headers.set('referrer-policy','strict-origin-when-cross-origin');
+        if(pathname.endsWith('.html')||pathname==='/')out.headers.set('cache-control','no-store');
+        return out;
+      }
+      return handleStagingRequest(req,env,pathname);
+    }
     const origin = req.headers.get('origin');
     const allowed=normalizeOrigin(env.PUBLIC_ORIGIN||'');
     const selfOrigin=new URL(req.url).origin;
     const siteOrigin=origin ? normalizeOrigin(origin) : '';
-    const validStagingOrigin=stageGateReady(env) && siteOrigin===selfOrigin;
-    if (!allowed || (origin && siteOrigin !== allowed && !validStagingOrigin)) return json({error:'origin_denied'},403);
-    const headers=cors(validStagingOrigin?selfOrigin:allowed);
+    const validStagingOrigin=!isProduction(env) && stageGateReady(env) && siteOrigin===selfOrigin;
+    const validProductionOrigin=isProduction(env) && siteOrigin===selfOrigin;
+    if (!allowed || (origin && siteOrigin !== allowed && !validStagingOrigin && !validProductionOrigin)) return json({error:'origin_denied'},403);
+    const headers=cors((validStagingOrigin||validProductionOrigin)?selfOrigin:allowed);
     if(req.method==='OPTIONS')return new Response(null,{status:204,headers});
     // Toss webhooks cannot carry the test editor's login cookie. Their payload is NOT trusted:
     // the handler verifies the actual payment status with Toss before any change.
     const publicChecks=new Set(['/api/health','/api/db-health','/api/r2-health','/api/payment-setup','/api/ui-health','/api/toss-webhook']);
     // Protected test checkout cannot be opted out via a dashboard variable override.
-    if(!publicChecks.has(pathname)){
+    if(isProduction(env)){
+      // Production is public, but cannot process any payment API until manual
+      // PG approval, seller disclosures and independent production resources exist.
+      if(env.PAYMENTS_MODE!=='live')return json({error:'live_mode_mismatch'},503,headers);
+      // Browsers send Origin on state-changing fetches. Disallow cross-site POST
+      // attempts without Origin except PG notifications and authenticated admin.
+      if(req.method==='POST' && pathname!=='/api/toss-webhook' && pathname!=='/api/reconcile' && !origin)
+        return json({error:'origin_required'},403,headers);
+    }else if(!publicChecks.has(pathname)){
       if(!stageGateReady(env))return json({error:'test_access_unconfigured'},503,headers);
       if(!(await hasStageSession(req,env)))return json({error:'test_access_required'},401,headers);
     }
@@ -410,4 +443,4 @@ export default {
     return response;
   }
 };
-export { PRICE_KRW, isEnabled, checkPayment };
+export { PRICE_KRW, isEnabled, isReaderReady, merchantReady, checkPayment };
