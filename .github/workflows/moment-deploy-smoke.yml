@@ -1,0 +1,45 @@
+name: MOMENT TEST Worker deployment smoke check
+
+on:
+  push:
+    branches:
+      - feat/build14-payment-test
+    paths:
+      - 'worker/src/**'
+      - 'site/payment/**'
+      - '.github/workflows/moment-deploy-smoke.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-stage-version:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Check public non-sensitive diagnostics on Cloudflare TEST Worker
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://moment-payments-test.jsuk5993-1ae.workers.dev"
+          curl --fail-with-body --silent --show-error --retry 2 --connect-timeout 8 --max-time 20 \
+            -H 'Origin: https://jsuk5993-crypto.github.io' -H 'Cache-Control: no-cache' \
+            "$BASE/api/health" > health.json
+          curl --fail-with-body --silent --show-error --retry 2 --connect-timeout 8 --max-time 20 \
+            -H 'Origin: https://jsuk5993-crypto.github.io' -H 'Cache-Control: no-cache' \
+            "$BASE/api/payment-setup" > setup.json
+          python3 - <<'PY'
+          import json
+          health=json.load(open('health.json'))
+          setup=json.load(open('setup.json'))
+          print('Cloudflare TEST health build:', health.get('build'))
+          print('Cloudflare TEST payment setup build:', setup.get('build'))
+          print('Mode:', setup.get('mode'), 'Staging gate required:', setup.get('testAccessRequired'))
+          assert health.get('ok') is True, 'Worker health check not ready'
+          assert health.get('build') == '35', 'Worker deployment is not Build 35'
+          assert setup.get('build') == '35', 'Frontend/backend deployment version mismatch'
+          assert setup.get('mode') == 'test', 'TEST Worker has the wrong payment mode'
+          assert setup.get('testAccessRequired') is True, 'Staging gate not required'
+          print('PASS: public diagnostic confirms Build 35 TEST Worker')
+          PY
