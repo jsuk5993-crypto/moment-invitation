@@ -4,7 +4,7 @@ import {readFileSync} from 'node:fs';
 import {runInNewContext} from 'node:vm';
 import {webcrypto} from 'node:crypto';
 const code=readFileSync(new URL('../../site/payment/payment-client.js',import.meta.url),'utf8');
-function scenario({mode='test',enabled=true,storedLicense=null,licenseStatus=200,pendingConfirmation=false}={}){
+function scenario({mode='test',enabled=true,storedLicense=null,licenseStatus=200,pendingConfirmation=false,recoveryIssueFailsAfterFirst=false}={}){
  const buy={disabled:true,textContent:'',click:null,addEventListener(kind,cb){if(kind==='click')this.click=cb}};
  const status={textContent:''};
  const newControl=()=>({hidden:false,disabled:false,textContent:'',value:'',click:null,addEventListener(k,cb){if(k==='click')this.click=cb;}});
@@ -54,13 +54,14 @@ function scenario({mode='test',enabled=true,storedLicense=null,licenseStatus=200
   if(path==='/api/config')return {ok:true,json:async()=>config};
   if(path==='/api/confirm')return {ok:true,json:async()=>({paid:true,license:'f'.repeat(64)})};
   if(path==='/api/orders'){orderBodies.push(JSON.parse(opts.body));return {ok:true,json:async()=>({amount:9900,orderId:'MOMENT_1234567',checkoutSecret:'a'.repeat(64)})};}
-  if(path==='/api/recovery/issue')return {ok:true,json:async()=>({recoveryCode:'e'.repeat(64)})};
+  if(path==='/api/recovery/issue'){recoveryIssueCalls++;return recoveryIssueFailsAfterFirst&&recoveryIssueCalls>1?{ok:false,json:async()=>({message:'토스 확인에 실패했어요.'})}:{ok:true,json:async()=>({recoveryCode:'e'.repeat(64)})};}
   if(path==='/api/recovery/redeem'){recoveryBodies.push(JSON.parse(opts.body));return {ok:true,json:async()=>({license:'f'.repeat(64),recoveryCode:'d'.repeat(64)})};}
   if(path==='/api/purchases/me')return {ok:true,json:async()=>({status:'paid',orderId:'MOMENT_TEST_123',amount:9900,paidAt:1793100000000})};
   if(path==='/api/license')return {ok:licenseStatus===200,status:licenseStatus,json:async()=>({active:licenseStatus===200})};
   if(path.startsWith('/api/assets/'))return {ok:true,blob:async()=>new Blob(['sample'],{type:'image/webp'})};
   throw Error('Unknown '+path);
  };
+ let recoveryIssueCalls=0;
  const downloadedFiles=[],revokedUrls=[];
  class TestURL extends URL {
   static createObjectURL(blob){downloadedFiles.push({blob});return 'blob:mock-recovery-file-'+downloadedFiles.length;}
@@ -260,4 +261,20 @@ test('Build38: redeeming a code also offers a backup of the next one-time code',
  assert.equal(buyer.downloadedFiles.length,1);
  assert.match(await buyer.downloadedFiles[0].blob.text(),/d{64}/);
  assert.doesNotMatch(await buyer.downloadedFiles[0].blob.text(),/a{64}/);
+});
+
+test('Build39: unsuccessful recovery code re-issue preserves previously shown code and TXT backup',async()=>{
+ const buyer=scenario({storedLicense:'b'.repeat(64),recoveryIssueFailsAfterFirst:true});
+ await tick();await tick();
+ await buyer.recoveryIssueBtn.click();
+ assert.equal(buyer.recoveryCodeBox.hidden,false);
+ assert.match(buyer.recoveryCodeText.textContent,/^eeeeeeee-/);
+ await buyer.recoveryIssueBtn.click();
+ assert.equal(buyer.recoveryCodeBox.hidden,false);
+ assert.match(buyer.recoveryCodeText.textContent,/^eeeeeeee-/);
+ assert.match(buyer.recoveryStatus.textContent,/토스 확인에 실패/);
+ await buyer.recoveryDownload.click();
+ assert.equal(buyer.downloadedFiles.length,1);
+ assert.match(await buyer.downloadedFiles[0].blob.text(),/e{64}/);
+ assert.equal(buyer.orderBodies.length,0);
 });
