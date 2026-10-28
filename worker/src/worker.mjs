@@ -212,6 +212,11 @@ async function handle(req, env, pathname) {
     if (!order || order.checkout_hash !== await sha(b.checkoutSecret) || order.amount!==PRICE_KRW || now()-order.created_at>MAX_ORDER_AGE_MS || order.status==='refunded') return json({error:'denied',message:errors.denied},403);
     if (order.status === 'paid') {
       if (order.payment_key !== b.paymentKey) return json({error:'denied',message:errors.denied},403);
+      // Retrying an existing confirmation must independently re-check the PG;
+      // otherwise stale checkout proof could re-issue rights after a refund.
+      const verified=await verifyLicenseWithToss(env,order);
+      if(verified==='inactive')return json({error:'denied',message:errors.denied},403);
+      if(verified!=='active')return json({error:'verification_unavailable',message:errors.unexpected},503);
       return json({ paid:true, license: await issueLicense(env,order.order_id) });
     }
     if (order.status === 'confirming') {

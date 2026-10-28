@@ -37,6 +37,11 @@
 .plan4.active #moment-recovery-status{margin:10px 0 0;font-size:11px;min-height:15px}
 
 /* Build36: accessible, non-sensitive purchase summary for paid browser only. */
+.plan4.active .moment-confirm-retry{margin-top:12px;padding:13px;border:1px solid #b4c7a7;border-radius:9px;background:#304938;color:#eef8e7}
+.plan4.active .moment-confirm-retry[hidden]{display:none!important}
+.plan4.active .moment-confirm-retry strong{font-size:12px}
+.plan4.active .moment-confirm-retry p{font-size:11px;line-height:1.7;color:#e4f1e0}
+.plan4.active .moment-confirm-retry button{min-height:42px;margin:5px 0;border:1px solid #b4c7a7;background:#eef6dc;color:#23402a}
 .plan4.active .moment-purchase-history{margin-top:17px;padding:14px;border:1px solid #829881;border-radius:11px;background:#314938;color:#eef7e9;text-align:left}
 .plan4.active .moment-purchase-history[hidden]{display:none!important}
 .plan4.active .moment-purchase-history strong{display:block;font-size:12px;font-weight:800}

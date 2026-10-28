@@ -39,6 +39,12 @@
     </div>
     <button type="button" id="moment-buy" disabled>결제 준비 중</button>
     <p class="moment-payment-status" id="moment-pay-status" role="status" aria-live="polite">결제 연동이 완료되면 이용할 수 있어요.</p>
+    <div id="moment-confirm-retry" class="moment-confirm-retry" hidden>
+      <strong>이전에 진행한 TEST 결제가 있나요?</strong>
+      <p>기존 주문의 승인 결과만 다시 조회합니다. 결제창을 새로 열거나 새 주문을 만들지 않습니다.</p>
+      <button type="button" id="moment-confirm-retry-btn">기존 결제 승인 다시 확인</button>
+      <p id="moment-confirm-retry-status" role="status" aria-live="polite"></p>
+    </div>
     <section class="moment-purchase-history" id="moment-purchase-history" hidden aria-label="내 구매내역">
       <strong>내 구매내역</strong>
       <dl><dt>주문번호</dt><dd id="moment-history-order">-</dd>
@@ -65,6 +71,41 @@
   plan.append(panel);
   const buy=panel.querySelector('#moment-buy'),status=panel.querySelector('#moment-pay-status');
   const agreement=panel.querySelector('#moment-policy-ack');
+  const pendingKey='moment_pending_confirm_v1';
+  const confirmRetryPanel=panel.querySelector('#moment-confirm-retry');
+  const confirmRetryButton=panel.querySelector('#moment-confirm-retry-btn');
+  const confirmRetryStatus=panel.querySelector('#moment-confirm-retry-status');
+  const pendingPayment=()=>{
+    try{
+      const p=JSON.parse(sessionStorage.getItem(pendingKey)||'null');
+      if(p && typeof p.orderId==='string'&&/^MOMENT_[a-zA-Z0-9_-]{6,64}$/.test(p.orderId)
+        && typeof p.paymentKey==='string'&&p.paymentKey.length>=6&&p.paymentKey.length<=200
+        && p.amount===9900 && Number.isFinite(p.savedAt)&&Date.now()-p.savedAt>=0&&Date.now()-p.savedAt<60*60*1000
+        && /^[a-f0-9]{64}$/.test(sessionStorage.getItem('moment_order_'+p.orderId)||''))return p;
+    }catch{}
+    return null;
+  };
+  confirmRetryPanel.hidden=!pendingPayment();
+  confirmRetryButton.addEventListener('click',async()=>{
+    const pending=pendingPayment();
+    if(!pending){confirmRetryStatus.textContent='이 브라우저에 복구 가능한 기존 주문 정보가 없어요. 새 결제는 하지 마세요.';return;}
+    confirmRetryButton.disabled=true;
+    confirmRetryStatus.textContent='기존 주문의 승인 상태를 다시 확인하고 있어요. 새 결제는 발생하지 않습니다.';
+    try{
+      const response=await fetch(api+'/api/confirm',{method:'POST',headers:{'content-type':'application/json'},
+        body:JSON.stringify({orderId:pending.orderId,paymentKey:pending.paymentKey,amount:9900,checkoutSecret:sessionStorage.getItem('moment_order_'+pending.orderId)})});
+      const result=await response.json();
+      if(!response.ok||result.paid!==true||!/^[a-f0-9]{64}$/.test(result.license||''))
+        throw Error(result.message||'기존 주문의 승인을 아직 확인하지 못했어요.');
+      localStorage.setItem(tokenStorageKey,result.license);
+      confirmRetryStatus.textContent='결제 확인 완료. 프리미엄 이미지를 확인하고 있어요.';
+      if(!await unlock(result.license))throw Error('구매 권한 확인에 실패했어요.');
+      sessionStorage.removeItem('moment_order_'+pending.orderId);
+      sessionStorage.removeItem(pendingKey);
+      confirmRetryPanel.hidden=true;
+    }catch(e){confirmRetryStatus.textContent=(e.message||'결제 상태 조회 실패')+' 새로 결제하지 말고 다시 시도해 주세요.';}
+    finally{confirmRetryButton.disabled=false;}
+  });
   const purchaseHistory=panel.querySelector('#moment-purchase-history');
   const historyOrder=panel.querySelector('#moment-history-order');
   const historyAmount=panel.querySelector('#moment-history-amount');
@@ -167,6 +208,7 @@
     }
     await window.MOMENT_ACCESS.activate(photos);
     buy.disabled=true;buy.textContent='프리미엄 이용 중';
+    confirmRetryPanel.hidden=true;
     recoveryIssue.hidden=false;recoveryRedeem.hidden=true;
     purchaseHistory.hidden=false;void loadPurchaseInfo(token);
     say('구매 권한이 확인됐어요. 고화질 PNG 2장 저장이 가능합니다. 기기 변경용 복원코드를 꼭 보관해 주세요.');

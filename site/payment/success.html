@@ -4,8 +4,13 @@
 <script src="payment-config.js"></script><script>
 (async()=>{
  const out=document.getElementById('result');const p=new URLSearchParams(location.search);
- const orderId=p.get('orderId'),key=p.get('paymentKey'),amount=Number(p.get('amount'));
+ const pendingKey='moment_pending_confirm_v1';
+ let saved=null;
+ try{const v=JSON.parse(sessionStorage.getItem(pendingKey)||'null');if(v && Date.now()-v.savedAt<60*60*1000)saved=v;}catch{}
+ const orderId=p.get('orderId')||saved?.orderId,key=p.get('paymentKey')||saved?.paymentKey;
+ const amount=Number(p.get('amount')||saved?.amount);
  const secret=orderId && sessionStorage.getItem('moment_order_'+orderId);
+ if(orderId&&key&&amount===9900&&secret)sessionStorage.setItem(pendingKey,JSON.stringify({orderId,paymentKey:key,amount,savedAt:saved?.savedAt||Date.now()}));
  const api=String(window.MOMENT_PAYMENT_API||'').replace(/\/$/,'');
  if(!api.startsWith('https://') || !orderId || !key || amount!==9900 || !secret){out.textContent='주문 정보를 확인할 수 없어요. 결제 완료 여부는 결제내역을 확인해 주세요.';return;}
  try{
@@ -14,11 +19,13 @@
   if(!res.ok || !result.paid || !/^[a-f0-9]{64}$/.test(result.license||''))throw Error(result.message||'승인 결과를 확인하지 못했습니다.');
   localStorage.setItem('moment_premium_receipt_v1',result.license);
   sessionStorage.removeItem('moment_order_'+orderId);
+  sessionStorage.removeItem(pendingKey);
   history.replaceState({},'',location.pathname);
   out.textContent='결제 승인 완료! 프리미엄 초대장으로 이동합니다.';
   setTimeout(()=>{location.replace('../index.html?premium=active#studio4')},900);
- }catch(e){out.textContent=(e.message||'승인 상태 확인에 실패했어요.')+' 결제가 실제로 승인됐을 수 있으니 중복 결제하지 마세요.';
+ }catch(e){out.textContent=(e.message||'승인 상태 확인에 실패했어요.')+' 같은 주문의 승인 결과를 다시 확인할 수 있습니다. 새로 결제하지 마세요.';
   const retry=document.createElement('button');retry.type='button';retry.textContent='승인 결과 다시 확인';retry.style.cssText='display:block;margin:14px auto 0;border:1px solid #806e9f;border-radius:10px;background:#fff;color:#493668;padding:11px 14px;cursor:pointer;font-weight:700';retry.addEventListener('click',()=>location.reload());out.after(retry);
-  // Preserve the redirect payment proof for idempotent retry until verified.
+  // Preserve the original callback proof for idempotent retry in the editor too.
+  const help=document.createElement('p');help.textContent='이 창을 닫아도 같은 브라우저의 프리미엄 카드에서 「기존 결제 승인 다시 확인」을 사용할 수 있어요.';out.after(help);
  }
 })();</script></body></html>

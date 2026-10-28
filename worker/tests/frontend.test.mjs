@@ -4,7 +4,7 @@ import {readFileSync} from 'node:fs';
 import {runInNewContext} from 'node:vm';
 import {webcrypto} from 'node:crypto';
 const code=readFileSync(new URL('../../site/payment/payment-client.js',import.meta.url),'utf8');
-function scenario({mode='test',enabled=true,storedLicense=null,licenseStatus=200}={}){
+function scenario({mode='test',enabled=true,storedLicense=null,licenseStatus=200,pendingConfirmation=false}={}){
  const buy={disabled:true,textContent:'',click:null,addEventListener(kind,cb){if(kind==='click')this.click=cb}};
  const status={textContent:''};
  const newControl=()=>({hidden:false,disabled:false,textContent:'',value:'',click:null,addEventListener(k,cb){if(k==='click')this.click=cb;}});
@@ -14,7 +14,10 @@ function scenario({mode='test',enabled=true,storedLicense=null,licenseStatus=200
  const recoveryInput=newControl(),recoveryCodeBox=newControl(),recoveryCodeText=newControl(),recoveryCopy=newControl(),recoveryStatus=newControl();
  recoveryIssue.hidden=true;recoveryCodeBox.hidden=true;
  const agreement={checked:false,change:null,addEventListener(kind,cb){if(kind==='change')this.change=cb;}};
+ const confirmRetryPanel=newControl(),confirmRetryButton=newControl(),confirmRetryStatus=newControl();
+ confirmRetryPanel.hidden=true;
  const recoveryControls={
+  '#moment-confirm-retry':confirmRetryPanel,'#moment-confirm-retry-btn':confirmRetryButton,'#moment-confirm-retry-status':confirmRetryStatus,
   '#moment-purchase-history':purchaseHistory,'#moment-history-order':historyOrder,
   '#moment-history-amount':historyAmount,'#moment-history-date':historyDate,
   '#moment-history-refresh':historyRefresh,'#moment-history-status':historyStatus,
@@ -37,11 +40,16 @@ function scenario({mode='test',enabled=true,storedLicense=null,licenseStatus=200
  ]).get(selector)||null;
  const local=new Map(storedLicense?[['moment_premium_receipt_v1',storedLicense]]:[]);
  const session=new Map(),calls=[],orderBodies=[],recoveryBodies=[];let activated=0;
+ if(pendingConfirmation){
+   session.set('moment_order_MOMENT_1234567','a'.repeat(64));
+   session.set('moment_pending_confirm_v1',JSON.stringify({orderId:'MOMENT_1234567',paymentKey:'payment_key_pending_abc',amount:9900,savedAt:Date.now()}));
+ }
  const TossPayments=key=>({payment:({customerKey})=>({requestPayment:async data=>calls.push({key,customerKey,data})})});
  const config={enabled,mode,amount:9900,currency:'KRW',clientKey:mode==='test'?'test_ck_mock':'live_ck_mock'};
  const fetch=async(url,opts={})=>{
   const path=new URL(url).pathname;
   if(path==='/api/config')return {ok:true,json:async()=>config};
+  if(path==='/api/confirm')return {ok:true,json:async()=>({paid:true,license:'f'.repeat(64)})};
   if(path==='/api/orders'){orderBodies.push(JSON.parse(opts.body));return {ok:true,json:async()=>({amount:9900,orderId:'MOMENT_1234567',checkoutSecret:'a'.repeat(64)})};}
   if(path==='/api/recovery/issue')return {ok:true,json:async()=>({recoveryCode:'e'.repeat(64)})};
   if(path==='/api/recovery/redeem'){recoveryBodies.push(JSON.parse(opts.body));return {ok:true,json:async()=>({license:'f'.repeat(64),recoveryCode:'d'.repeat(64)})};}
@@ -59,6 +67,7 @@ function scenario({mode='test',enabled=true,storedLicense=null,licenseStatus=200
    fetch,URL,Blob,crypto:webcrypto,navigator:{clipboard:{writeText:async()=>{}}}});
  return {buy,agreement,calls,orderBodies,session,plan,planTitle,badge,policy,note,local,status,
   recoveryIssue,recoveryIssueBtn,recoveryRedeem,recoveryRedeemBtn,recoveryInput,recoveryCodeBox,recoveryCodeText,recoveryBodies,recoveryStatus,
+  confirmRetryPanel,confirmRetryButton,confirmRetryStatus,
   purchaseHistory,historyOrder,historyAmount,historyDate,historyRefresh,historyStatus,
   get activated(){return activated}};
 }
@@ -187,4 +196,22 @@ test('Build36 hotfix: required checkout checkbox remains visible despite legacy 
  assert.equal(ctx.buy.disabled,true);
  ctx.agreement.checked=true;ctx.agreement.change();
  assert.equal(ctx.buy.disabled,false);
+});
+
+test('Build37: pending payment success callback can be resumed without a new checkout',async()=>{
+ const ctx=scenario({pendingConfirmation:true});await tick();
+ assert.equal(ctx.confirmRetryPanel.hidden,false);
+ await ctx.confirmRetryButton.click();await tick();
+ assert.equal(ctx.activated,1);
+ assert.equal(ctx.calls.length,0);
+ assert.equal(ctx.orderBodies.length,0);
+ assert.equal(ctx.local.get('moment_premium_receipt_v1'),'f'.repeat(64));
+ assert.equal(ctx.session.has('moment_pending_confirm_v1'),false);
+ assert.equal(ctx.confirmRetryPanel.hidden,true);
+});
+test('Build37: pending retry button stays hidden without existing confirmed callback proof',async()=>{
+ const ctx=scenario();await tick();assert.equal(ctx.confirmRetryPanel.hidden,true);
+ const success=readFileSync(new URL('../../site/payment/success.html',import.meta.url),'utf8');
+ assert.match(success,/moment_pending_confirm_v1/);
+ assert.match(success,/sessionStorage\.setItem\(pendingKey/);
 });

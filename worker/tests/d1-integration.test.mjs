@@ -361,3 +361,17 @@ test('Build36: refunds revoke receipt access; Toss outage returns 503 without re
   assert.equal(sqlite.prepare('SELECT status FROM orders WHERE order_id=?').get(o.orderId).status,'refunded');
  }finally{globalThis.fetch=oldFetch;sqlite.close()}
 });
+
+test('Build37: retrying already paid order requires fresh Toss DONE check; cancellation denies token refresh',async()=>{
+ const {env,sqlite}=makeEnvironment(),o=await newOrder(env),oldFetch=globalThis.fetch;
+ globalThis.fetch=async()=>Response.json(payment(o));
+ try{
+   const done=await parsed(await confirm(env,o));assert.equal(done.status,200);
+   const retry=await parsed(await confirm(env,o));assert.equal(retry.status,200);
+   assert.notEqual(retry.body.license,done.body.license);
+   globalThis.fetch=async()=>Response.json(payment(o,'CANCELED'));
+   const canceled=await parsed(await confirm(env,o));assert.equal(canceled.status,403);
+   assert.equal(sqlite.prepare('SELECT status FROM orders WHERE order_id=?').get(o.orderId).status,'refunded');
+   assert.equal((await worker.fetch(request('/api/license','GET',undefined,retry.body.license),env)).status,401);
+ }finally{globalThis.fetch=oldFetch;sqlite.close()}
+});
