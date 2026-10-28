@@ -56,3 +56,34 @@ jobs:
           done
           echo "::error::TEST Worker build 36 has not been confirmed; check Cloudflare deployment."
           exit 1
+
+
+  verify-payment-dependencies:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Check TEST database, all private R2 assets, and payment readiness without credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          BASE="https://moment-payments-test.jsuk5993-1ae.workers.dev"
+          for NAME in db-health r2-health payment-setup; do
+            echo "Checking /api/$NAME"
+            curl -sS --retry 2 --connect-timeout 8 --max-time 20 \
+              -H 'Origin: https://jsuk5993-crypto.github.io' "$BASE/api/$NAME" > "$NAME.json"
+          done
+          python3 - <<'PY'
+          import json
+          db=json.load(open('db-health.json'))
+          r2=json.load(open('r2-health.json'))
+          setup=json.load(open('payment-setup.json'))
+          print('Orders table ready:', db.get('ordersTableReady'))
+          print('Private R2 assets ready:', r2.get('assetsReady'), '/', r2.get('assetsExpected'))
+          print('TEST checkout enabled:', setup.get('paymentsEnabled'))
+          print('TEST staging gate:', setup.get('testAccessReady'))
+          assert db.get('ok') is True, 'D1 orders table is not ready'
+          assert r2.get('ok') is True, 'Private R2 premium assets are missing'
+          assert setup.get('mode') == 'test', 'Not in TEST mode'
+          assert setup.get('testAccessReady') is True, 'TEST access gate unavailable'
+          print('PASS: all components needed for existing buyer restoration are configured')
+          PY
