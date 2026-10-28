@@ -10,8 +10,10 @@ const TEST_STAGE_COOKIE='__Host-moment_stage='+TEST_STAGE_EXPIRY+'.'+TEST_STAGE_
 
 const ORIGIN='https://jsuk5993-crypto.github.io';
 class FakeDB {
-  constructor(){this.rows=new Map()}
-  prepare(sql){return { bind:(...values)=>({
+  constructor(){this.rows=new Map();this.acceptances=new Map()}
+  prepare(sql){return {
+    run:async()=>{if(sql.startsWith('CREATE TABLE IF NOT EXISTS purchase_acknowledgements'))return {meta:{changes:0}};throw Error('Unexpected direct SQL: '+sql)},
+    bind:(...values)=>({
     first:async()=>{
       if(sql.startsWith('SELECT * FROM orders'))return this.rows.get(values[0])||null;
       if(sql.startsWith('SELECT order_id, status FROM orders WHERE license_hash')){
@@ -19,6 +21,9 @@ class FakeDB {
       } throw Error('Unexpected first SQL: '+sql);
     },
     run:async()=>{
+      if(sql.startsWith('INSERT INTO purchase_acknowledgements')){
+        const [order_id,policy_version,acknowledged_at]=values;this.acceptances.set(order_id,{policy_version,acknowledged_at});return {meta:{changes:1}};
+      }
       if(sql.startsWith('INSERT INTO orders')){const [id,amount,status,checkout_hash,created_at]=values;this.rows.set(id,{order_id:id,amount,status,checkout_hash,created_at,payment_key:null,license_hash:null});return {meta:{changes:1}}}
       if(sql.startsWith('UPDATE orders SET status = ?, payment_key = ? WHERE order_id = ? AND status = ?')){
         const [status,key,id,expected]=values,r=this.rows.get(id);
@@ -44,7 +49,8 @@ class FakeDB {
 function env(){return {TEST_ACCESS_REQUIRED:'true',TEST_ACCESS_SECRET:TEST_STAGE_SECRET,PAYMENTS_ACTIVE:'true',PAYMENTS_MODE:'test',PUBLIC_ORIGIN:ORIGIN,TOSS_CLIENT_KEY:'test_ck_dummy',TOSS_SECRET_KEY:'test_sk_dummy',DB:new FakeDB(),PREMIUM_ASSETS:{get:async(k)=>({body:new Blob(['test image bytes'],{type:'image/webp'}).stream()})},ADMIN_SECRET:'not-public-secret'};}
 const req=(path,method='GET',body,token,origin=ORIGIN)=>new Request('https://pay.example.workers.dev'+path,{method,headers:{Origin:origin,cookie:TEST_STAGE_COOKIE,...(body?{'content-type':'application/json'}:{}),...(token?{Authorization:'Bearer '+token}:{})},body:body?JSON.stringify(body):undefined});
 const parse=async(resp)=>({status:resp.status,body:await resp.json()});
-const create=async(e)=>parse(await worker.fetch(req('/api/orders','POST',{}),e));
+const ack={policyAcknowledged:true,policyVersion:'2026-10-28-v1'};
+const create=async(e)=>parse(await worker.fetch(req('/api/orders','POST',ack),e));
 const confirm=(e,order,extra={})=>worker.fetch(req('/api/confirm','POST',{orderId:order.orderId,checkoutSecret:order.checkoutSecret,paymentKey:'key_dummy_'+order.orderId,amount:9900,...extra}),e);
 
 test('payment OFF by default; no checkout is available',async()=>{
@@ -56,7 +62,7 @@ test('wrong origin cannot create an order',async()=>{
  const e=env();const r=await worker.fetch(req('/api/orders','POST',{},null,'https://malicious.example'),e);assert.equal(r.status,403);
 });
 test('server fixes price to 9900 even when browser sends a fake amount',async()=>{
- const e=env();const {status,body}=await parse(await worker.fetch(req('/api/orders','POST',{amount:1}),e));
+ const e=env();const {status,body}=await parse(await worker.fetch(req('/api/orders','POST',{...ack,amount:1}),e));
  assert.equal(status,201);assert.equal(body.amount,9900);assert.equal(e.DB.rows.get(body.orderId).amount,9900);
 });
 test('no payment proof cannot unlock, and assets require paid license',async()=>{
@@ -102,4 +108,26 @@ test('refunded order loses license',async()=>{
   assert.equal(reconcile.body.status,'refunded');
   assert.equal((await worker.fetch(req('/api/license','GET',null,paid.body.license),e)).status,401);
  }finally{globalThis.fetch=oldFetch;}
+});
+
+test('Build34: server refuses orders without explicit matching policy confirmation',async()=>{
+ const e=env();
+ const empty=await worker.fetch(req('/api/orders','POST',{}),e);
+ assert.equal(empty.status,400);
+ assert.equal((await empty.json()).error,'policy_ack_required');
+ const wrong=await worker.fetch(req('/api/orders','POST',{policyAcknowledged:true,policyVersion:'older'}),e);
+ assert.equal(wrong.status,400);
+ const falseConsent=await worker.fetch(req('/api/orders','POST',{policyAcknowledged:false,policyVersion:'2026-10-28-v1'}),e);
+ assert.equal(falseConsent.status,400);
+ assert.equal(e.DB.rows.size,0);
+ assert.equal(e.DB.acceptances.size,0);
+});
+test('Build34: accepted version and time are audited without personal information',async()=>{
+ const e=env();
+ const {status,body}=await create(e);
+ assert.equal(status,201);
+ const accepted=e.DB.acceptances.get(body.orderId);
+ assert.equal(accepted.policy_version,'2026-10-28-v1');
+ assert.equal(typeof accepted.acknowledged_at,'number');
+ assert.equal(e.DB.rows.get(body.orderId).created_at,accepted.acknowledged_at);
 });

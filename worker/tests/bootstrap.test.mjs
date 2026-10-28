@@ -9,7 +9,7 @@ test('Build16 bootstrap health is available without DB, R2, or Toss credentials'
  const response=await app.fetch(req('GET','/api/health'),env);
  assert.equal(response.status,200);
  const body=await response.json();
- assert.deepEqual(body,{ok:true,service:'moment-payments',build:'31',paymentsEnabled:false});
+ assert.deepEqual(body,{ok:true,service:'moment-payments',build:'34',paymentsEnabled:false});
  assert.equal(response.headers.get('access-control-allow-origin'),testOrigin);
  assert.equal(response.headers.get('cache-control'),'no-store');
 });
@@ -123,7 +123,7 @@ test('Build23 setup diagnostics isolate the stage password and disabled switch w
 test('Build28 diagnostics distinguish missing secret bindings from wrong key format without disclosure',async()=>{
  const base={...env,DB:{},PREMIUM_ASSETS:{}};
  const missing=await (await app.fetch(req('GET','/api/payment-setup'),base)).json();
- assert.equal(missing.build,'31');
+ assert.equal(missing.build,'34');
  assert.equal(missing.clientKeyPresent,false);
  assert.equal(missing.secretKeyPresent,false);
  assert.equal(missing.clientKeyConfigured,false);

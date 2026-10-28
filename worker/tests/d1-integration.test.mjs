@@ -34,7 +34,8 @@ function makeEnvironment() {
     ADMIN_SECRET:'integration-only-secret' };
   return {env,sqlite};
 }
-const newOrder=async(env) => (await parsed(await worker.fetch(request('/api/orders','POST',{}),env))).body;
+const ack={policyAcknowledged:true,policyVersion:'2026-10-28-v1'};
+const newOrder=async(env) => (await parsed(await worker.fetch(request('/api/orders','POST',ack),env))).body;
 const confirm=(env,o,additional={})=>worker.fetch(request('/api/confirm','POST',{orderId:o.orderId,paymentKey:'key_'+o.orderId,amount:9900,checkoutSecret:o.checkoutSecret,...additional}),env);
 const payment=(o,status='DONE',amount=9900)=>({orderId:o.orderId,paymentKey:'key_'+o.orderId,totalAmount:amount,status});
 
@@ -243,4 +244,19 @@ test('Build31: unauthenticated Toss webhook independently verifies a claimed can
    assert.equal(sqlite.prepare('SELECT status FROM orders WHERE order_id=?').get(o.orderId).status,'refunded');
    assert.equal((await worker.fetch(request('/api/assets/disco','GET',undefined,done.body.license),env)).status,401);
  }finally{globalThis.fetch=originalFetch;sqlite.close()}
+});
+
+test('Build34: D1 audit table persists exact policy version and timestamp with order',async()=>{
+ const {env,sqlite}=makeEnvironment();try{
+  const missing=await worker.fetch(request('/api/orders','POST',{}),env);
+  assert.equal(missing.status,400);
+  const old=await worker.fetch(request('/api/orders','POST',{policyAcknowledged:true,policyVersion:'2025-01-01'}),env);
+  assert.equal(old.status,400);
+  assert.equal(sqlite.prepare('SELECT COUNT(*) AS n FROM purchase_acknowledgements').get().n,0);
+  const o=await newOrder(env);
+  const row=sqlite.prepare('SELECT order_id,policy_version,acknowledged_at FROM purchase_acknowledgements WHERE order_id = ?').get(o.orderId);
+  assert.equal(row.order_id,o.orderId);
+  assert.equal(row.policy_version,'2026-10-28-v1');
+  assert.ok(row.acknowledged_at>0);
+ }finally{sqlite.close()}
 });

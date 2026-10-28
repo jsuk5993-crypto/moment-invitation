@@ -7,7 +7,8 @@ const code=readFileSync(new URL('../../site/payment/payment-client.js',import.me
 function scenario({mode='test',enabled=true,storedLicense=null,licenseStatus=200}={}){
  const buy={disabled:true,textContent:'',click:null,addEventListener(kind,cb){if(kind==='click')this.click=cb}};
  const status={textContent:''};
- const panel={innerHTML:'',className:'',querySelector:s=>s==='#moment-buy'?buy:status};
+ const agreement={checked:false,change:null,addEventListener(kind,cb){if(kind==='change')this.change=cb;}};
+ const panel={innerHTML:'',className:'',querySelector:s=>s==='#moment-buy'?buy:s==='#moment-policy-ack'?agreement:status};
  const note={innerHTML:''};
  const planTitle={textContent:''},priceHint={textContent:''},badge={textContent:''},benefit={textContent:''};
  const intro={textContent:''},policy={textContent:''},divider={textContent:''};
@@ -20,13 +21,13 @@ function scenario({mode='test',enabled=true,storedLicense=null,licenseStatus=200
   ['.collection-divider.paid small',divider]
  ]).get(selector)||null;
  const local=new Map(storedLicense?[['moment_premium_receipt_v1',storedLicense]]:[]);
- const session=new Map(),calls=[];let activated=0;
+ const session=new Map(),calls=[],orderBodies=[];let activated=0;
  const TossPayments=key=>({payment:({customerKey})=>({requestPayment:async data=>calls.push({key,customerKey,data})})});
  const config={enabled,mode,amount:9900,currency:'KRW',clientKey:mode==='test'?'test_ck_mock':'live_ck_mock'};
- const fetch=async(url)=>{
+ const fetch=async(url,opts={})=>{
   const path=new URL(url).pathname;
   if(path==='/api/config')return {ok:true,json:async()=>config};
-  if(path==='/api/orders')return {ok:true,json:async()=>({amount:9900,orderId:'MOMENT_1234567',checkoutSecret:'a'.repeat(64)})};
+  if(path==='/api/orders'){orderBodies.push(JSON.parse(opts.body));return {ok:true,json:async()=>({amount:9900,orderId:'MOMENT_1234567',checkoutSecret:'a'.repeat(64)})};}
   if(path==='/api/license')return {ok:licenseStatus===200,status:licenseStatus,json:async()=>({active:licenseStatus===200})};
   if(path.startsWith('/api/assets/'))return {ok:true,blob:async()=>new Blob(['sample'],{type:'image/webp'})};
   throw Error('Unknown '+path);
@@ -38,13 +39,17 @@ function scenario({mode='test',enabled=true,storedLicense=null,licenseStatus=200
  runInNewContext(code,{window,document,localStorage:{getItem:k=>local.get(k)||null,setItem:(k,v)=>local.set(k,v),removeItem:k=>local.delete(k)},
    sessionStorage:{getItem:k=>session.get(k)||null,setItem:(k,v)=>session.set(k,v)},
    fetch,URL,Blob,crypto:webcrypto});
- return {buy,calls,session,plan,planTitle,badge,policy,note,local,status,get activated(){return activated}};
+ return {buy,agreement,calls,orderBodies,session,plan,planTitle,badge,policy,note,local,status,get activated(){return activated}};
 }
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
 test('Build22: test config enables only test checkout button',async()=>{
- const ctx=scenario();await tick();assert.equal(ctx.buy.disabled,false);
+ const ctx=scenario();await tick();assert.equal(ctx.buy.disabled,true);
+ ctx.agreement.checked=true;ctx.agreement.change();
+ assert.equal(ctx.buy.disabled,false);
  assert.match(ctx.buy.textContent,/테스트 결제/);await ctx.buy.click();
  assert.equal(ctx.calls.length,1);assert.equal(ctx.calls[0].key,'test_ck_mock');
+ assert.equal(ctx.orderBodies[0].policyAcknowledged,true);
+ assert.equal(ctx.orderBodies[0].policyVersion,'2026-10-28-v1');
  assert.match(ctx.calls[0].customerKey,/^[0-9a-f-]{36}$/);
  assert.equal(ctx.calls[0].data.windowTarget,'self');
  assert.equal(ctx.calls[0].data.amount.value,9900);
@@ -65,7 +70,8 @@ test('Build29: purchase button is visibly mounted on the PREMIUM pricing plan wi
  const ctx=scenario();await tick();
  assert.ok(ctx.plan.appended);
  assert.equal(ctx.plan.appended.querySelector('#moment-buy'),ctx.buy);
- assert.equal(ctx.buy.disabled,false);
+ assert.equal(ctx.buy.disabled,true);
+ ctx.agreement.checked=true;ctx.agreement.change();assert.equal(ctx.buy.disabled,false);
  assert.match(ctx.planTitle.textContent,/TEST/);
  assert.match(ctx.badge.textContent,/실제 청구 없음/);
  assert.match(ctx.policy.textContent,/정식 판매는 아직/);
@@ -95,5 +101,20 @@ test('Build31: refunded receipt removed and buyer may purchase a new TEST order'
  const ctx=scenario({storedLicense:'d'.repeat(64),licenseStatus:401});
  await tick();await tick();
  assert.equal(ctx.local.has('moment_premium_receipt_v1'),false);
+ assert.equal(ctx.buy.disabled,true);
+ ctx.agreement.checked=true;ctx.agreement.change();
  assert.equal(ctx.buy.disabled,false);
+});
+
+test('Build34: no agreement keeps the purchase button disabled and cannot create an order',async()=>{
+ const ctx=scenario();await tick();
+ assert.equal(ctx.buy.disabled,true);
+ await ctx.buy.click();
+ assert.equal(ctx.orderBodies.length,0);
+ assert.equal(ctx.calls.length,0);
+ assert.match(ctx.status.textContent,/구매 안내를 확인/);
+ ctx.agreement.checked=true;ctx.agreement.change();
+ assert.equal(ctx.buy.disabled,false);
+ ctx.agreement.checked=false;ctx.agreement.change();
+ assert.equal(ctx.buy.disabled,true);
 });
