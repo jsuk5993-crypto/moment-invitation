@@ -10,6 +10,12 @@ PAYMENTS_ACTIVE = "false"
 PAYMENTS_MODE = "test"
 PUBLIC_ORIGIN = "https://jsuk5993-crypto.github.io"
 
-# DO NOT put D1/R2 bindings here until those resources exist.
-# See wrangler.toml.example for the full config requiring account-specific IDs.
+# Build 17: remote D1 order database; schema created via Cloudflare Console.
+[[d1_databases]]
+binding = "DB"
+database_name = "moment-orders"
+database_id = "c86c6827-7982-457f-9049-60991d782a85"
+
+# R2 is intentionally not bound until the private assets bucket exists.
+# See wrangler.toml.example for the future private R2 configuration.
 # Never write TOSS_SECRET_KEY or ADMIN_SECRET in this public file.

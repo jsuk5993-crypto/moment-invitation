@@ -29,3 +29,22 @@ test('Build16 wrong-origin bootstrap requests are blocked',async()=>{
  const response=await app.fetch(req('GET','/api/health','https://attacker.example'),env);
  assert.equal(response.status,403);
 });
+
+test('Build17 DB status is disabled when no binding is set',async()=>{
+ const response=await app.fetch(req('GET','/api/db-health'),env);
+ assert.equal(response.status,503);
+ assert.deepEqual(await response.json(),{ok:false,databaseConnected:false,ordersTableReady:false});
+});
+test('Build17 DB status checks that the real orders table exists',async()=>{
+ const readyEnv={...env, DB:{prepare(sql){
+   assert.match(sql,/sqlite_master/);
+   return {first:async()=>({name:'orders'})};
+ }}};
+ const response=await app.fetch(req('GET','/api/db-health'),readyEnv);
+ assert.equal(response.status,200);
+ assert.deepEqual(await response.json(),{ok:true,databaseConnected:true,ordersTableReady:true});
+ const missingEnv={...env,DB:{prepare:()=>({first:async()=>null})}};
+ const noTable=await app.fetch(req('GET','/api/db-health'),missingEnv);
+ assert.equal(noTable.status,503);
+ assert.deepEqual(await noTable.json(),{ok:false,databaseConnected:true,ordersTableReady:false});
+});

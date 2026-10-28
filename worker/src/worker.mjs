@@ -74,6 +74,17 @@ async function handle(req, env, pathname) {
     // Safe public bootstrap diagnostic: never exposes credentials or purchase data.
     return json({ok:true, service:'moment-payments', build:'16', paymentsEnabled:isEnabled(env)});
   }
+  if (pathname === '/api/db-health' && req.method === 'GET') {
+    // Public read-only diagnostic. Never returns order records or credentials.
+    if (!env.DB) return json({ok:false, databaseConnected:false, ordersTableReady:false},503);
+    try {
+      const table=await env.DB.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'orders'").first();
+      const ready=!!table;
+      return json({ok:ready, databaseConnected:true, ordersTableReady:ready},ready?200:503);
+    } catch {
+      return json({ok:false, databaseConnected:true, ordersTableReady:false},503);
+    }
+  }
   if (pathname === '/api/config' && req.method === 'GET') {
     const enabled=isEnabled(env);
     return json({ enabled, mode: enabled ? env.PAYMENTS_MODE : 'off', amount: PRICE_KRW, currency:'KRW', clientKey: enabled ? env.TOSS_CLIENT_KEY : null });
