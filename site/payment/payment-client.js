@@ -108,7 +108,7 @@
   let checkoutReady=false;
   const syncBuy=()=>{
     buy.disabled=!checkoutReady || !agreement.checked;
-    if(checkoutReady && !agreement.checked) say('위 안내문 아래의 네모 체크박스를 선택해야 결제 버튼이 활성화됩니다.');
+    if(checkoutReady && !agreement.checked) say('구매 안내를 확인하려면 위 안내문 아래의 네모 체크박스를 선택해 주세요. 선택하면 결제 버튼이 활성화됩니다.');
     else if(checkoutReady) say('토스 TEST 환경입니다. 실제 카드에 돈이 청구되지 않아요.');
   };
   agreement.addEventListener('change',syncBuy);
