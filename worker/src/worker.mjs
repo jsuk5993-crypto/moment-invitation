@@ -155,7 +155,7 @@ async function handle(req, env, pathname) {
       orderDatabaseBound:!!env.DB,premiumStorageBound:!!env.PREMIUM_ASSETS,
       paymentSwitchActive:env.PAYMENTS_ACTIVE==='true',
       // Build28: this is an immutable security rule, NOT an env variable.
-      build:'35',testAccessRequired:true,
+      build:'36',testAccessRequired:true,
       testAccessSecretConfigured:typeof env.TEST_ACCESS_SECRET==='string' && env.TEST_ACCESS_SECRET.length>0,
       testAccessReady:stageGateReady(env),
       publicOriginConfigured:!!env.PUBLIC_ORIGIN,
