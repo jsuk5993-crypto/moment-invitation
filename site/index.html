@@ -81,7 +81,8 @@ html{scroll-behavior:smooth} .head-inner{gap:20px}.head-right{margin-left:auto}.
 .b12-instructions{font-size:12px;color:#6b776c;line-height:1.7;margin:0 0 10px}
 .b12-notice{border-radius:11px;border:1px solid #e2e4df;background:#f9faf6;padding:12px 14px;font-size:12px;line-height:1.7;color:#536253;margin:8px 0 14px}
 .b12-notice.warning{border-color:#f1c7ab;background:#fff6ee;color:#8e563a}
-.b12-pair-btn{display:block;width:100%;border:1px solid #abbcab;background:#e8eee7;color:#294332;padding:13px 12px;border-radius:10px;font-weight:800;font-size:14px;margin:10px 0}
+.b12-pair-btn{display:block;width:100%;border:1px solid #abbcab;background:#e8eee7;color:#294332;padding:13px 12px;border-radius:10px;font-weight:800;font-size:14px;margin:10px 0}.b12-zip-help{margin:8px 2px 13px;color:#66745e;font-size:11px;line-height:1.65}
+
 .b12-pair-btn:disabled{opacity:.45;cursor:not-allowed}
 .b12-help{margin-top:8px;color:#757f75;font-size:11px;line-height:1.6}
 .b12-hidden{display:none!important}
@@ -178,7 +179,7 @@ html{scroll-behavior:smooth} .head-inner{gap:20px}.head-right{margin-left:auto}.
 
   <div class="stage"><canvas id="poster" width="1080" height="1350" aria-label="초대장 미리보기"></canvas><span class="stage-label">LIVE PREVIEW</span></div>
   <div class="downloads"><button type="button" class="primary" id="download"><svg width="17" height="17" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path d="M12 3v12m-5-5 5 5 5-5M5 17v3h14v-3"/></svg>고화질 PNG 저장</button><button type="button" class="secondary" id="copy">문구 복사</button></div>
-  <button id="b12DownloadPair" type="button" class="b12-pair-btn">메인 + 오시는 길 · 2장 ZIP 저장</button><div id="b12Validate" class="b12-notice" role="status">디자인을 선택하고 내용을 입력해 주세요.</div><div class="features" id="featureList"><span>베이직 PNG 무료 저장</span><span>프리미엄 미리보기</span><span>사진은 기기 내에서만 처리</span></div>
+  <button id="b12DownloadPair" type="button" class="b12-pair-btn">메인 + 오시는 길 · 2장 ZIP 저장</button><p class="b12-zip-help">두 장 ZIP 저장은 오시는 길 카드의 지도 이미지·주소·교통·주차 안내를 입력한 뒤 사용할 수 있어요. 저장한 ZIP 파일에는 PNG 두 장이 들어 있습니다.</p><div id="b12Validate" class="b12-notice" role="status">디자인을 선택하고 내용을 입력해 주세요.</div><div class="features" id="featureList"><span>베이직 PNG 무료 저장</span><span>프리미엄 미리보기</span><span>사진은 기기 내에서만 처리</span></div>
     <div class="premium-actions" id="premiumActions" role="status"><strong>프리미엄 디자인 · 9,900원 (예정)</strong>지금은 제작 결과를 워터마크와 함께 미리 볼 수 있어요. 온라인 결제와 유료 다운로드는 아직 준비 중입니다. 실제 결제가 시작되면 이곳에서 결제 후 파일을 받을 수 있도록 연결할 예정입니다.</div>
   <p class="foot-note">베이직 4종은 무료 저장할 수 있습니다. 프리미엄은 결제 준비 중이므로 미리보기만 가능합니다.<br>사진과 개인정보는 서버에 업로드되지 않습니다.</p>
 </aside>
@@ -447,25 +448,59 @@ function b12Validate(){const warn=[];const guide=cardSide==='guide';
  return !warn.length;}
 function b12CanSavePair(){if(premiumKey()&&!hasPremiumAccess()){toast('프리미엄은 결제 연동 전 미리보기만 제공해요.');return false}
  const before=cardSide;cardSide='guide';const good=b12Validate();cardSide=before;b12Validate();if(!good){toast('오시는 길 정보를 입력하고 길이를 확인해 주세요.');return false}return true;}
-function b12Blob(){return new Promise(resolve=>cv.toBlob(resolve,'image/png'))}
-function b12DownloadBlob(blob,name){const u=URL.createObjectURL(blob),a=document.createElement('a');a.href=u;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),5000)}
+function b12Blob(){return new Promise((resolve,reject)=>{try{cv.toBlob(resolve,'image/png')}catch(err){reject(err)}})}
+function b12DownloadBlob(blob,name){if(!(blob instanceof Blob)||blob.size===0)throw Error('EMPTY_DOWNLOAD');const u=URL.createObjectURL(blob);try{const a=document.createElement('a');a.href=u;a.download=name;document.body.append(a);try{a.click()}finally{a.remove()}setTimeout(()=>URL.revokeObjectURL(u),5000)}catch(err){URL.revokeObjectURL(u);throw err}}
+/* Build39: validate both real canvas PNG outputs before creating a ZIP.
+   Confirms the PNG signature, IHDR dimensions and final IEND record. */
+function b12PNGValid(bytes){if(!(bytes instanceof Uint8Array)||bytes.length<70)return false;
+ const signature=[137,80,78,71,13,10,26,10];
+ if(!signature.every((v,i)=>bytes[i]===v))return false;
+ const v=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength);
+ if(v.getUint32(8)!==13||v.getUint32(12)!==0x49484452)return false;
+ if(v.getUint32(16)!==W||v.getUint32(20)!==H)return false;
+ const n=bytes.length;
+ return v.getUint32(n-12)===0&&v.getUint32(n-8)===0x49454e44;
+}
 const b12ZipTable=(()=>{const t=[];for(let n=0;n<256;n++){let c=n;for(let i=0;i<8;i++)c=(c&1)?0xedb88320^(c>>>1):c>>>1;t.push(c>>>0)}return t})();
 function b12CRC(bytes){let crc=0xffffffff;for(const byte of bytes)crc=b12ZipTable[(crc^byte)&255]^(crc>>>8);return(crc^0xffffffff)>>>0}
-function b12Zip(files){const encoder=new TextEncoder(),parts=[],central=[];let offset=0;
+function b12Zip(files){if(!Array.isArray(files)||files.length!==2||files.some(([name,bytes])=>typeof name!=='string'||!name.endsWith('.png')||!b12PNGValid(bytes)))throw Error('INVALID_PNG_PAIR');
+ const encoder=new TextEncoder(),parts=[],central=[];let offset=0;
  const h16=(view,i,n)=>view.setUint16(i,n,true),h32=(view,i,n)=>view.setUint32(i,n,true);
  for(const [name,bytes] of files){const fn=encoder.encode(name),crc=b12CRC(bytes),l=new Uint8Array(30+fn.length),v=new DataView(l.buffer);h32(v,0,0x04034b50);h16(v,4,20);h16(v,8,0);h32(v,14,crc);h32(v,18,bytes.length);h32(v,22,bytes.length);h16(v,26,fn.length);l.set(fn,30);parts.push(l,bytes);
  const z=new Uint8Array(46+fn.length),d=new DataView(z.buffer);h32(d,0,0x02014b50);h16(d,4,20);h16(d,6,20);h32(d,16,crc);h32(d,20,bytes.length);h32(d,24,bytes.length);h16(d,28,fn.length);h32(d,42,offset);z.set(fn,46);central.push(z);offset+=l.length+bytes.length;}
  const centralLen=central.reduce((n,x)=>n+x.length,0),end=new Uint8Array(22),ev=new DataView(end.buffer);h32(ev,0,0x06054b50);h16(ev,8,files.length);h16(ev,10,files.length);h32(ev,12,centralLen);h32(ev,16,offset);return new Blob([...parts,...central,end],{type:'application/zip'});}
 async function b12SaveCurrent(){const prev=cardSide;
- if(premiumKey()&&!hasPremiumAccess()){toast('프리미엄은 구매 기능을 준비 중이에요.');return}
+ if(premiumKey()&&!hasPremiumAccess()){toast('프리미엄 구매 권한을 먼저 확인해 주세요. 다시 결제하지 마세요.');return}
  if(prev==='guide'&&!b12CanSavePair())return;
  if(prev==='front'&&!b12Validate()){toast('글자 수를 조금 줄인 후 저장해 주세요.');return}
- draw();const blob=await b12Blob();if(!blob){toast('PNG 생성에 실패했어요.');return}
- b12DownloadBlob(blob,`moment_${theme}_${prev==='front'?'main':'directions'}.png`);toast('PNG를 저장했어요.');}
-async function b12SavePair(){if(!b12CanSavePair())return;const frontFieldsOk=(()=>{const s=cardSide;cardSide='front';let ok=b12Validate();cardSide=s;b12Validate();return ok})();if(!frontFieldsOk){toast('초대장 제목이나 문구 길이를 확인해 주세요.');return}
- const original=cardSide,btn=$('b12DownloadPair');btn.disabled=true;btn.textContent='두 장을 준비하고 있어요…';try{
- cardSide='front';draw();const a=await b12Blob();cardSide='guide';draw();const b=await b12Blob();if(!a||!b)throw Error('PNG 생성 실패');const f1=new Uint8Array(await a.arrayBuffer()),f2=new Uint8Array(await b.arrayBuffer());const zip=b12Zip([[`moment_${theme}_01_main.png`,f1],[`moment_${theme}_02_directions.png`,f2]]);b12DownloadBlob(zip,`moment_${theme}_2cards.zip`);toast('초대장 두 장 세트를 저장했어요.');
- }catch(e){console.error(e);toast('저장에 실패했습니다. 다시 시도해 주세요.')}finally{cardSide=original;draw();btn.disabled=false;btn.textContent='메인 + 오시는 길 · 2장 ZIP 저장';}}
+ try{
+  draw();const blob=await b12Blob();
+  if(!blob||!b12PNGValid(new Uint8Array(await blob.arrayBuffer())))throw Error('INVALID_PNG');
+  b12DownloadBlob(blob,`moment_${theme}_${prev==='front'?'main':'directions'}.png`);
+  toast('PNG 다운로드를 요청했어요. 브라우저 다운로드 목록을 확인해 주세요.');
+ }catch(e){console.error('PNG export failed',e);toast('PNG 저장 요청에 실패했어요. 새 결제 없이 다시 시도해 주세요.')}
+}
+async function b12SavePair(){if(!b12CanSavePair())return;
+ const frontFieldsOk=(()=>{const s=cardSide;cardSide='front';let ok=b12Validate();cardSide=s;b12Validate();return ok})();
+ if(!frontFieldsOk){toast('초대장 제목이나 문구 길이를 확인해 주세요.');return}
+ const original=cardSide,btn=$('b12DownloadPair');btn.disabled=true;btn.textContent='두 장을 준비하고 있어요…';
+ try{
+  cardSide='front';draw();const front=await b12Blob();
+  if(!front)throw Error('FRONT_PNG_EMPTY');
+  const f1=new Uint8Array(await front.arrayBuffer());
+  if(!b12PNGValid(f1))throw Error('FRONT_PNG_INVALID');
+  cardSide='guide';draw();const guide=await b12Blob();
+  if(!guide)throw Error('GUIDE_PNG_EMPTY');
+  const f2=new Uint8Array(await guide.arrayBuffer());
+  if(!b12PNGValid(f2))throw Error('GUIDE_PNG_INVALID');
+  const zip=b12Zip([[`moment_${theme}_01_main.png`,f1],[`moment_${theme}_02_directions.png`,f2]]);
+  b12DownloadBlob(zip,`moment_${theme}_2cards.zip`);
+  toast('PNG 2장이 담긴 ZIP 다운로드를 요청했어요. 브라우저 다운로드 목록을 확인해 주세요.');
+ }catch(e){
+  console.error('ZIP export failed',e);
+  toast('ZIP 저장 요청에 실패했어요. 입력한 오시는 길 정보를 확인하고 새 결제 없이 다시 시도해 주세요.');
+ }finally{cardSide=original;draw();btn.disabled=false;btn.textContent='메인 + 오시는 길 · 2장 ZIP 저장'}
+}
 function b12Setup(){for(const [id,s] of [['b12TabFront','front'],['b12TabGuide','guide'],['b12PreviewFront','front'],['b12PreviewGuide','guide']])$(id).addEventListener('click',()=>b12SetSide(s));
  $('b12DownloadPair').addEventListener('click',b12SavePair);
  $('mapInput').addEventListener('change',e=>{const f=e.target.files?.[0];if(!f)return;if(!['image/png','image/jpeg','image/webp'].includes(f.type)||f.size>15*1024*1024){toast('15MB 이하 이미지 파일만 지원해요.');return}const u=URL.createObjectURL(f),im=new Image();im.onload=()=>{if(mapPhotoURL)URL.revokeObjectURL(mapPhotoURL);mapPhotoURL=u;mapPhoto=im;$('mapFilename').textContent=f.name;b12Validate();schedule()};im.onerror=()=>{URL.revokeObjectURL(u);toast('지도 이미지를 열지 못했어요.');};im.src=u;});
