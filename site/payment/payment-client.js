@@ -35,9 +35,10 @@
       <p>프리미엄 6종은 결제 승인 즉시 제공돼요. 제공이 시작된 디지털 콘텐츠는 법정 요건을 충족하는 경우 단순 변심 청약철회가 제한될 수 있습니다. 다만 제공 오류·중복 결제·설명과 다른 상품 등 법정 권리는 유지됩니다.</p>
       <a href="payment/purchase-policy.html" target="_blank" rel="noopener noreferrer">상품 내용과 환불 기준 자세히 보기</a>
       <label class="moment-ack-label"><input type="checkbox" id="moment-policy-ack">
-      <span>워터마크 미리보기 제공, 결제 후 즉시 콘텐츠 제공 및 청약철회 제한 가능성에 대한 안내를 확인했습니다. (필수)</span></label>
+      <span>워터마크 미리보기 제공, 결제 후 즉시 콘텐츠 제공 및 청약철회 제한 가능성에 대한 안내를 확인했습니다. <strong>(필수 · 체크해야 결제 가능)</strong></span></label>
     </div>
     <button type="button" id="moment-buy" disabled>결제 준비 중</button>
+    <p class="moment-payment-status" id="moment-pay-status" role="status" aria-live="polite">결제 연동이 완료되면 이용할 수 있어요.</p>
     <section class="moment-purchase-history" id="moment-purchase-history" hidden aria-label="내 구매내역">
       <strong>내 구매내역</strong>
       <dl><dt>주문번호</dt><dd id="moment-history-order">-</dd>
@@ -60,8 +61,7 @@
         <code id="moment-recovery-code-value"></code>
         <button type="button" id="moment-recovery-copy">복원코드 복사</button></div>
       <p id="moment-recovery-status" role="status" aria-live="polite"></p>
-    </section>
-    <p class="moment-payment-status" id="moment-pay-status" role="status" aria-live="polite">결제 연동이 완료되면 이용할 수 있어요.</p>`;
+    </section>`;
   plan.append(panel);
   const buy=panel.querySelector('#moment-buy'),status=panel.querySelector('#moment-pay-status');
   const agreement=panel.querySelector('#moment-policy-ack');
@@ -108,7 +108,7 @@
   let checkoutReady=false;
   const syncBuy=()=>{
     buy.disabled=!checkoutReady || !agreement.checked;
-    if(checkoutReady && !agreement.checked) say('구매 안내를 확인하고 체크하면 TEST 결제를 시작할 수 있어요.');
+    if(checkoutReady && !agreement.checked) say('위 안내문 아래의 네모 체크박스를 선택해야 결제 버튼이 활성화됩니다.');
     else if(checkoutReady) say('토스 TEST 환경입니다. 실제 카드에 돈이 청구되지 않아요.');
   };
   agreement.addEventListener('change',syncBuy);

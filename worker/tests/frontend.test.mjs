@@ -172,3 +172,19 @@ test('Build36: purchase summary is hidden before payment and visible after verif
  assert.match(buyer.historyStatus.textContent,/결제가 확인된/);
  assert.equal(buyer.calls.length,0);
 });
+
+test('Build36 hotfix: required checkout checkbox remains visible despite legacy appearance:none',async()=>{
+ const style=readFileSync(new URL('../../site/payment/payment-style.css',import.meta.url),'utf8');
+ assert.match(style,/\.moment-ack-label input\[type="checkbox"\]/);
+ assert.match(style,/appearance:checkbox!important/);
+ assert.match(style,/display:inline-block!important/);
+ const ctx=scenario();await tick();
+ const html=ctx.plan.appended.innerHTML;
+ assert.match(html,/type="checkbox" id="moment-policy-ack"/);
+ assert.ok(html.indexOf('moment-policy-ack')<html.indexOf('moment-buy'));
+ assert.ok(html.indexOf('moment-buy')<html.indexOf('moment-pay-status'));
+ assert.ok(html.indexOf('moment-pay-status')<html.indexOf('moment-recovery'));
+ assert.equal(ctx.buy.disabled,true);
+ ctx.agreement.checked=true;ctx.agreement.change();
+ assert.equal(ctx.buy.disabled,false);
+});

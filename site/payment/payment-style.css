@@ -45,3 +45,26 @@
 .plan4.active .moment-purchase-history dd{margin:0;overflow-wrap:anywhere;color:#f5faef}
 .plan4.active .moment-purchase-history button{min-height:38px;font-size:11px;background:transparent;color:#f1f8e8;border:1px solid #a4c1a4;box-shadow:none}
 .plan4.active .moment-purchase-history p{margin:9px 0 0;color:#dceadb;font-size:11px;line-height:1.65}
+
+/* Build 36 hotfix: the legacy app globally sets input{appearance:none}.
+   Restore the native checkbox for mandatory purchase acknowledgement. */
+.plan4.active .moment-ack-label{display:flex;align-items:flex-start;gap:11px;padding:12px;margin-top:13px;border:1px solid #a3b99d;border-radius:8px;background:#263e2e;cursor:pointer}
+.plan4.active .moment-ack-label input[type="checkbox"]{
+  -webkit-appearance:checkbox!important;
+  appearance:checkbox!important;
+  display:inline-block!important;
+  visibility:visible!important;
+  opacity:1!important;
+  position:static!important;
+  flex:0 0 21px;
+  width:21px;
+  height:21px;
+  min-width:21px;
+  min-height:21px;
+  margin:1px 0 0;
+  padding:0;
+  accent-color:#d9eabb;
+  cursor:pointer;
+}
+.plan4.active .moment-ack-label:focus-within{outline:2px solid #e7facb;outline-offset:2px}
+.plan4.active .moment-ack-label strong{display:inline;color:#efffc9;font-weight:800}
