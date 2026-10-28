@@ -118,6 +118,22 @@ async function handle(req, env, pathname) {
     // Safe public bootstrap diagnostic: never exposes credentials or purchase data.
     return json({ok:true, service:'moment-payments', build:'36', paymentsEnabled:isEnabled(env)});
   }
+  if (pathname === '/api/ui-health' && req.method === 'GET') {
+    // Build36 regression: smoke-test deployed, password-protected static UI
+    // without disclosing its contents or weakening the TEST staging gate.
+    try {
+      if(!env.STAGING_ASSETS?.fetch)return json({ok:false,checkboxStyleReady:false,checkoutClientReady:false},503);
+      const origin=new URL(req.url).origin;
+      const [css,js]=await Promise.all([
+        env.STAGING_ASSETS.fetch(new Request(origin+'/payment/payment-style.css')),
+        env.STAGING_ASSETS.fetch(new Request(origin+'/payment/payment-client.js'))
+      ]);
+      const checkboxStyleReady=css.ok && (await css.text()).includes('Build 36 hotfix: the legacy app globally sets input');
+      const checkoutClientReady=js.ok && (await js.text()).includes('구매 안내를 확인하려면 위 안내문 아래의 네모 체크박스');
+      const ok=checkboxStyleReady&&checkoutClientReady;
+      return json({ok,checkboxStyleReady,checkoutClientReady},ok?200:503);
+    }catch{return json({ok:false,checkboxStyleReady:false,checkoutClientReady:false},503);}
+  }
   if (pathname === '/api/db-health' && req.method === 'GET') {
     // Public read-only diagnostic. Never returns order records or credentials.
     if (!env.DB) return json({ok:false, databaseConnected:false, ordersTableReady:false},503);
@@ -360,7 +376,7 @@ export default {
     if(req.method==='OPTIONS')return new Response(null,{status:204,headers});
     // Toss webhooks cannot carry the test editor's login cookie. Their payload is NOT trusted:
     // the handler verifies the actual payment status with Toss before any change.
-    const publicChecks=new Set(['/api/health','/api/db-health','/api/r2-health','/api/payment-setup','/api/toss-webhook']);
+    const publicChecks=new Set(['/api/health','/api/db-health','/api/r2-health','/api/payment-setup','/api/ui-health','/api/toss-webhook']);
     // Protected test checkout cannot be opted out via a dashboard variable override.
     if(!publicChecks.has(pathname)){
       if(!stageGateReady(env))return json({error:'test_access_unconfigured'},503,headers);

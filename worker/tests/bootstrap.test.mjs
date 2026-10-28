@@ -138,3 +138,22 @@ test('Build28 diagnostics distinguish missing secret bindings from wrong key for
  assert.equal(output.includes('test_gck_redacted'),false);
  assert.equal(output.includes('test_gsk_redacted'),false);
 });
+
+test('Build36 hotfix: public UI health checks staged CSS and JS without returning private page contents',async()=>{
+ const good={
+  ...env,
+  STAGING_ASSETS:{async fetch(request){
+    const css=new URL(request.url).pathname.endsWith('.css');
+    return new Response(css?'/* Build 36 hotfix: the legacy app globally sets input */':'구매 안내를 확인하려면 위 안내문 아래의 네모 체크박스');
+  }}
+ };
+ const valid=await app.fetch(req('GET','/api/ui-health'),good);
+ assert.equal(valid.status,200);
+ assert.deepEqual(await valid.json(),{ok:true,checkboxStyleReady:true,checkoutClientReady:true});
+ const missing=await app.fetch(req('GET','/api/ui-health'),env);
+ assert.equal(missing.status,503);
+ assert.deepEqual(await missing.json(),{ok:false,checkboxStyleReady:false,checkoutClientReady:false});
+ const wrong=await app.fetch(req('GET','/api/ui-health'),{...env,STAGING_ASSETS:{fetch:async()=>new Response('old-version')}});
+ assert.equal(wrong.status,503);
+ assert.equal((await wrong.json()).ok,false);
+});

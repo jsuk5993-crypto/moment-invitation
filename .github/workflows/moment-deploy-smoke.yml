@@ -29,18 +29,24 @@ jobs:
                 -H 'Origin: https://jsuk5993-crypto.github.io' "$BASE/api/health" -o health.json \
               && curl -fsS --retry 2 --connect-timeout 8 --max-time 20 \
                 -H 'Origin: https://jsuk5993-crypto.github.io' "$BASE/api/payment-setup" -o setup.json \
+              && curl -fsS --retry 2 --connect-timeout 8 --max-time 20 \
+                -H 'Origin: https://jsuk5993-crypto.github.io' "$BASE/api/ui-health" -o ui.json \
               && python3 - <<'PY'
           import json
           health=json.load(open('health.json'))
           setup=json.load(open('setup.json'))
+          ui=json.load(open('ui.json'))
           print('Cloudflare TEST health build:', health.get('build'))
           print('Cloudflare TEST setup build:', setup.get('build'))
+          print('Checkout checkbox style ready:', ui.get('checkboxStyleReady'))
+          print('Checkout frontend JS ready:', ui.get('checkoutClientReady'))
           print('Mode:', setup.get('mode'), 'Staging gate required:', setup.get('testAccessRequired'))
           assert health.get('ok') is True
           assert health.get('build') == '36'
           assert setup.get('build') == '36'
           assert setup.get('mode') == 'test'
           assert setup.get('testAccessRequired') is True
+          assert ui.get('ok') is True, 'Deployed checkout checkbox fix is missing'
           print('PASS: live TEST Worker diagnostics match Build 36')
           PY
             then
