@@ -75,7 +75,7 @@ test('Build39: altered/truncated/wrong-dimension PNG is refused before a ZIP can
  assert.equal(b12PNGValid(bad),false);
  assert.throws(()=>b12Zip([['a.png',bad],['b.png',png]]),/INVALID_PNG_PAIR/);
  const short=png.slice(0,58);assert.equal(b12PNGValid(short),false);
- const wrongDimensions=new Uint8Array(png);wrongDimensions[16]=0;
+ const wrongDimensions=new Uint8Array(png);wrongDimensions[19]=0;
  assert.equal(b12PNGValid(wrongDimensions),false);
  assert.throws(()=>b12Zip([['a.png',png]]),/INVALID_PNG_PAIR/);
 });
@@ -83,7 +83,7 @@ test('Build39: the paid export triggers exactly one ZIP download with two PNGs; 
  const png=makePng(),{b12PNGValid,b12Zip}=tools();
  const button={disabled:false,textContent:'save'},messages=[],downloads=[],drawCalls=[];
  const sandbox={
-  b12PNGValid,b12Zip,b12CanSavePair:()=>true,b12Validate:()=>true,cardSide:'front',theme:'p_city',
+  b12PNGValid,b12Zip,Uint8Array,b12CanSavePair:()=>true,b12Validate:()=>true,cardSide:'front',theme:'p_city',
   b12Blob:async()=>new Blob([png],{type:'image/png'}),
   draw(){drawCalls.push(sandbox.cardSide)},
   b12DownloadBlob(blob,name){downloads.push({blob,name})},
@@ -106,7 +106,7 @@ test('Build39: failed guide rendering never downloads a partial ZIP or leaves sa
  const button={disabled:false,textContent:'save'},messages=[],downloads=[];
  let n=0;
  const sandbox={
-  b12PNGValid,b12Zip,b12CanSavePair:()=>true,b12Validate:()=>true,cardSide:'front',theme:'p_city',
+  b12PNGValid,b12Zip,Uint8Array,b12CanSavePair:()=>true,b12Validate:()=>true,cardSide:'front',theme:'p_city',
   b12Blob:async()=>{n++;return n===1?new Blob([png],{type:'image/png'}):null},
   draw(){},b12DownloadBlob(blob,name){downloads.push({blob,name})},
   toast(s){messages.push(s)},console:{error(){}},
