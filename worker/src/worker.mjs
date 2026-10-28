@@ -20,9 +20,13 @@ const keyPairReady = (env) => {
 };
 // FAIL CLOSED: this Worker is a staging-only payment server.
  // Test checkout MUST NOT become public even when Cloudflare dashboard overrides Wrangler flags.
-const isEnabled = (env) => env.PAYMENTS_ACTIVE === 'true' && env.PAYMENTS_MODE === 'test'
-  && stageGateReady(env) && keyPairReady(env)
-  && !!env.DB && !!env.PREMIUM_ASSETS && !!env.PUBLIC_ORIGIN;
+const isReaderReady = (env) => env.PAYMENTS_MODE === 'test'
+  && stageGateReady(env) && !!env.DB && !!env.PREMIUM_ASSETS
+  && typeof env.TOSS_SECRET_KEY === 'string' && env.TOSS_SECRET_KEY.startsWith('test_sk_')
+  && !!env.PUBLIC_ORIGIN;
+// Enabling/disabling new checkout must NEVER revoke access for earlier paid orders.
+const isEnabled = (env) => env.PAYMENTS_ACTIVE === 'true' && isReaderReady(env)
+  && keyPairReady(env);
 const cors = (origin) => ({'access-control-allow-origin':origin, 'vary':'Origin', 'access-control-allow-methods':'GET,POST,OPTIONS', 'access-control-allow-headers':'content-type,authorization', 'access-control-max-age':'600'});
 class ClientInputError extends Error {}
 const errors = { disabled: '결제 연결 준비 중입니다.', invalid: '요청 정보를 확인해 주세요.', denied: '구매 권한이 확인되지 않았습니다.', unexpected: '결제 상태 확인이 지연되고 있습니다. 중복 결제하지 말고 고객센터에 문의해 주세요.' };
@@ -49,6 +53,28 @@ async function issueLicense(env, orderId) {
 async function readOrder(env, orderId) { return env.DB.prepare('SELECT * FROM orders WHERE order_id = ?').bind(orderId).first(); }
 async function updatePaid(env, orderId, paymentKey) {
   await env.DB.prepare('UPDATE orders SET status = ?, payment_key = ?, paid_at = ? WHERE order_id = ? AND status IN (?, ?)').bind('paid', paymentKey, now(), orderId, 'confirming', 'paid').run();
+}
+async function revokeLicense(env, orderId) {
+  await env.DB.prepare('UPDATE orders SET status = ?, license_hash = NULL WHERE order_id = ? AND status = ?')
+    .bind('refunded', orderId, 'paid').run();
+}
+// Called on a paid buyer's restore attempt. Verify status at Toss before returning assets.
+// This is a single remote lookup on page reload, not one remote call per image.
+async function verifyLicenseWithToss(env, order) {
+  const full=await readOrder(env,order.order_id);
+  if(!full || full.status!=='paid' || !full.payment_key) return 'inactive';
+  try {
+    const response=await tossQuery(env,full.payment_key);
+    if(!response.ok) return 'unavailable';
+    const p=await response.json();
+    if(p.orderId!==full.order_id || p.paymentKey!==full.payment_key || p.totalAmount!==PRICE_KRW)
+      return 'unavailable';
+    if(['CANCELED','PARTIAL_CANCELED'].includes(p.status)) {
+      await revokeLicense(env,full.order_id);
+      return 'inactive';
+    }
+    return p.status==='DONE' ? 'active' : 'unavailable';
+  }catch {return 'unavailable';}
 }
 const authToken = (req) => {const h=req.headers.get('authorization')||'';return /^Bearer [a-f0-9]{64}$/.test(h) ? h.slice(7) : '';};
 async function licenseOrder(req, env) {
@@ -133,7 +159,11 @@ async function handle(req, env, pathname) {
     const enabled=isEnabled(env);
     return json({ enabled, mode: enabled ? env.PAYMENTS_MODE : 'off', amount: PRICE_KRW, currency:'KRW', clientKey: enabled ? env.TOSS_CLIENT_KEY : null });
   }
-  if (!isEnabled(env)) return json({error:'disabled',message:errors.disabled},503);
+  // Orders/confirmation can be paused, while already paid customers retain read access.
+  const readerOnly = pathname==='/api/license' || pathname.startsWith('/api/assets/')
+    || pathname==='/api/reconcile' || pathname==='/api/toss-webhook';
+  if(!isEnabled(env) && !(readerOnly && isReaderReady(env)))
+    return json({error:'disabled',message:errors.disabled},503);
   if (pathname === '/api/orders' && req.method === 'POST') {
     // Amount is deliberately FIXED on the server, never accepted from the browser.
     await readJSON(req);
@@ -192,7 +222,13 @@ async function handle(req, env, pathname) {
   }
   if (pathname === '/api/license' && req.method === 'GET') {
     const order=await licenseOrder(req,env);
-    return order?.status === 'paid' ? json({active:true,designs:[...ASSETS]}) : json({active:false},401);
+    if(order?.status!=='paid') return json({active:false},401);
+    if(new URL(req.url).searchParams.get('verify')==='1') {
+      const checked=await verifyLicenseWithToss(env,order);
+      if(checked==='inactive') return json({active:false},401);
+      if(checked!=='active') return json({error:'verification_unavailable',message:'결제 상태를 확인하지 못했습니다. 중복 결제하지 말고 다시 시도해 주세요.'},503);
+    }
+    return json({active:true,designs:[...ASSETS]});
   }
   if (pathname.startsWith('/api/assets/') && req.method === 'GET') {
     const order=await licenseOrder(req,env);
@@ -215,7 +251,7 @@ async function handle(req, env, pathname) {
     const verified=await lookup.json();
     if (verified.orderId !== order.order_id || verified.paymentKey !== order.payment_key || verified.totalAmount !== PRICE_KRW) return json({error:'mismatch'},409);
     if (['CANCELED','PARTIAL_CANCELED'].includes(verified.status))
-      await env.DB.prepare('UPDATE orders SET status = ?, license_hash = NULL WHERE order_id = ?').bind('refunded',order.order_id).run();
+      await revokeLicense(env,order.order_id);
     return json({received:true});
   }
   if (pathname === '/api/reconcile' && req.method === 'POST') {
@@ -231,7 +267,7 @@ async function handle(req, env, pathname) {
       return json({status:'paid',note:'Buyer can retry success page with original checkout proof.'});
     }
     if (['CANCELED','PARTIAL_CANCELED'].includes(info.status)) {
-      await env.DB.prepare('UPDATE orders SET status = ?, license_hash = NULL WHERE order_id = ?').bind('refunded',order.order_id).run();
+      await revokeLicense(env,order.order_id);
       return json({status:'refunded',note:'Partial cancellations are treated as revoked until reviewed.'});
     }
     return json({status: info.status});

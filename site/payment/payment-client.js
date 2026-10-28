@@ -38,8 +38,9 @@
   const get=(path,options={})=>fetch(api+path,{cache:'no-store',...options});
   const available = () => api.startsWith('https://') && api.length>12;
   async function unlock(token) {
-    const check=await get('/api/license',{headers:{authorization:'Bearer '+token}});
-    if(!check.ok)return false;
+    const check=await get('/api/license?verify=1',{headers:{authorization:'Bearer '+token}});
+    if(check.status===401){localStorage.removeItem(tokenStorageKey);return false;}
+    if(!check.ok)throw new Error('구매 상태 확인이 일시적으로 지연되고 있어요. 다시 결제하지 말고 새로고침해 주세요.');
     const photos={};
     for(const id of PREMIUM){
       const res=await get('/api/assets/'+id,{headers:{authorization:'Bearer '+token}});
@@ -59,13 +60,14 @@
       const res=await get('/api/config');
       if(!res.ok){say('테스트 서버 접근이 확인되지 않았어요. 비공개 로그인 상태를 확인해 주세요.');return;}
       const cfg=await res.json();
-      if(!cfg.enabled){say('현재 서버에서 테스트 결제가 비활성화되어 있어요.');return;}
-      if(cfg.mode!=='test'){say('테스트 전용 화면에서는 실결제를 사용할 수 없어요.');return;}
-      if(!Number.isInteger(cfg.amount)||cfg.amount!==9900 || !cfg.clientKey){say('테스트 결제 설정을 확인할 수 없어요.');return;}
+      if(cfg.mode!=='test' && cfg.enabled){say('테스트 전용 화면에서는 실결제를 사용할 수 없어요.');return;}
       const receipt=localStorage.getItem(tokenStorageKey);
       if(receipt){
-        try{if(await unlock(receipt))return;}catch(e){say('이전에 구매한 상품을 복원하지 못했어요. 잠시 뒤 다시 확인해 주세요.');}
+        try{if(await unlock(receipt))return;}
+        catch(e){say(e.message||'구매 권한 확인이 지연돼요. 중복 결제하지 마세요.');return;}
       }
+      if(!cfg.enabled){say('새 결제는 일시 중단됐지만 기존 구매자의 이용은 계속 가능합니다.');return;}
+      if(!Number.isInteger(cfg.amount)||cfg.amount!==9900 || !cfg.clientKey){say('테스트 결제 설정을 확인할 수 없어요.');return;}
       try{await ensureTossSDK()}catch{say('결제 화면을 불러오지 못했습니다. 새로고침해 주세요.');return;}
       buy.disabled=false;buy.textContent='테스트 결제 시작 · 9,900원 (실제 청구 없음)';
       say('토스 TEST 환경입니다. 실제 카드에 돈이 청구되지 않아요.');
