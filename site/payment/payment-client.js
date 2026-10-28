@@ -38,6 +38,16 @@
       <span>워터마크 미리보기 제공, 결제 후 즉시 콘텐츠 제공 및 청약철회 제한 가능성에 대한 안내를 확인했습니다. (필수)</span></label>
     </div>
     <button type="button" id="moment-buy" disabled>결제 준비 중</button>
+    <section class="moment-purchase-history" id="moment-purchase-history" hidden aria-label="내 구매내역">
+      <strong>내 구매내역</strong>
+      <dl><dt>주문번호</dt><dd id="moment-history-order">-</dd>
+        <dt>구매금액</dt><dd id="moment-history-amount">-</dd>
+        <dt>구매일시</dt><dd id="moment-history-date">-</dd>
+        <dt>구매상품</dt><dd>MOMENT 프리미엄 초대장 6종</dd></dl>
+      <button type="button" id="moment-history-refresh">구매내역 다시 확인</button>
+      <p id="moment-history-status" role="status" aria-live="polite"></p>
+      <p>결제 또는 구매 권한 문의 시 주문번호와 토스 결제내역을 준비해 주세요. 주문번호만으로 구매 권한을 재발급하지 않습니다.</p>
+    </section>
     <section class="moment-recovery" aria-label="기존 구매 복원">
       <strong>기존 구매 복원 · 기기 변경</strong>
       <p>이미 결제했다면 구매 당시 따로 보관한 1회용 복원코드로 새 기기에서 이용할 수 있어요. 코드가 없으면 자동 복원할 수 없습니다.</p>
@@ -55,6 +65,29 @@
   plan.append(panel);
   const buy=panel.querySelector('#moment-buy'),status=panel.querySelector('#moment-pay-status');
   const agreement=panel.querySelector('#moment-policy-ack');
+  const purchaseHistory=panel.querySelector('#moment-purchase-history');
+  const historyOrder=panel.querySelector('#moment-history-order');
+  const historyAmount=panel.querySelector('#moment-history-amount');
+  const historyDate=panel.querySelector('#moment-history-date');
+  const historyRefresh=panel.querySelector('#moment-history-refresh');
+  const historyStatus=panel.querySelector('#moment-history-status');
+  const loadPurchaseInfo=async(token)=>{
+    historyStatus.textContent='토스 결제 상태 확인 중…';
+    try{
+      const response=await get('/api/purchases/me',{headers:{authorization:'Bearer '+token}});
+      const result=await response.json();
+      if(!response.ok||result.status!=='paid')throw Error(result.message||'구매내역을 확인하지 못했어요.');
+      historyOrder.textContent=String(result.orderId||'-');
+      historyAmount.textContent=Number(result.amount)===9900?'9,900원':'확인 필요';
+      historyDate.textContent=Number.isFinite(result.paidAt)&&result.paidAt>0?new Date(result.paidAt).toLocaleString('ko-KR'):'확인 필요';
+      historyStatus.textContent='결제가 확인된 구매내역입니다.';
+    }catch(e){historyStatus.textContent=(e.message||'조회가 지연되고 있어요.')+' 중복 결제하지 마세요.';}
+  };
+  historyRefresh.addEventListener('click',()=>{
+    const receipt=localStorage.getItem(tokenStorageKey);
+    if(receipt)void loadPurchaseInfo(receipt);
+    else historyStatus.textContent='구매 권한을 먼저 복원해 주세요.';
+  });
   const recoveryIssue=panel.querySelector('#moment-recovery-issue');
   const recoveryIssueBtn=panel.querySelector('#moment-recovery-issue-btn');
   const recoveryRedeem=panel.querySelector('#moment-recovery-redeem');
@@ -135,6 +168,7 @@
     await window.MOMENT_ACCESS.activate(photos);
     buy.disabled=true;buy.textContent='프리미엄 이용 중';
     recoveryIssue.hidden=false;recoveryRedeem.hidden=true;
+    purchaseHistory.hidden=false;void loadPurchaseInfo(token);
     say('구매 권한이 확인됐어요. 고화질 PNG 2장 저장이 가능합니다. 기기 변경용 복원코드를 꼭 보관해 주세요.');
     return true;
   }

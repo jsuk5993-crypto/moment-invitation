@@ -116,7 +116,7 @@ async function readJSON(req) {
 async function handle(req, env, pathname) {
   if (pathname === '/api/health' && req.method === 'GET') {
     // Safe public bootstrap diagnostic: never exposes credentials or purchase data.
-    return json({ok:true, service:'moment-payments', build:'35', paymentsEnabled:isEnabled(env)});
+    return json({ok:true, service:'moment-payments', build:'36', paymentsEnabled:isEnabled(env)});
   }
   if (pathname === '/api/db-health' && req.method === 'GET') {
     // Public read-only diagnostic. Never returns order records or credentials.
@@ -168,7 +168,8 @@ async function handle(req, env, pathname) {
   // Orders/confirmation can be paused, while already paid customers retain read access.
   const readerOnly = pathname==='/api/license' || pathname.startsWith('/api/assets/')
     || pathname==='/api/reconcile' || pathname==='/api/toss-webhook'
-    || pathname==='/api/recovery/issue' || pathname==='/api/recovery/redeem';
+    || pathname==='/api/recovery/issue' || pathname==='/api/recovery/redeem'
+    || pathname==='/api/purchases/me';
   if(!isEnabled(env) && !(readerOnly && isReaderReady(env)))
     return json({error:'disabled',message:errors.disabled},503);
   if (pathname === '/api/orders' && req.method === 'POST') {
@@ -234,6 +235,20 @@ async function handle(req, env, pathname) {
     }
     await updatePaid(env,b.orderId,b.paymentKey);
     return json({paid:true,license:await issueLicense(env,b.orderId)});
+  }
+  if (pathname === '/api/purchases/me' && req.method === 'GET') {
+    // Read-only receipt summary for the bearer-license owner. Order IDs, email
+    // or user-supplied query params never authorize purchase lookup.
+    const owned=await licenseOrder(req,env);
+    if(owned?.status!=='paid')return json({error:'denied'},401);
+    const verified=await verifyLicenseWithToss(env,owned);
+    if(verified==='inactive')return json({error:'denied'},401);
+    if(verified!=='active')return json({error:'verification_unavailable',message:errors.unexpected},503);
+    const order=await env.DB.prepare('SELECT order_id,amount,paid_at FROM orders WHERE order_id=? AND status=? AND license_hash=?')
+      .bind(owned.order_id,'paid',await sha(authToken(req))).first();
+    if(!order)return json({error:'denied'},401);
+    return json({orderId:order.order_id,amount:order.amount,currency:'KRW',paidAt:order.paid_at,
+      status:'paid',product:'MOMENT 프리미엄 초대장 6종',designCount:ASSETS.size,pngPerDownload:2});
   }
   if (pathname === '/api/recovery/issue' && req.method === 'POST') {
     // Only a current paid bearer license can issue/rotate a recovery code.

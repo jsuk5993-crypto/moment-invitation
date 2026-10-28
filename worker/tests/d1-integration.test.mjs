@@ -328,3 +328,36 @@ test('Build35: issuing another recovery code invalidates previous code',async()=
   assert.equal((await worker.fetch(request('/api/recovery/redeem','POST',{recoveryCode:newCode}),env)).status,200);
  }finally{globalThis.fetch=oldFetch;sqlite.close()}
 });
+
+test('Build36: paid buyer can read own receipt summary without payment or license secrets',async()=>{
+ const {env,sqlite}=makeEnvironment(),o=await newOrder(env),originalFetch=globalThis.fetch;
+ globalThis.fetch=async()=>Response.json(payment(o));
+ try{
+  const confirmed=await parsed(await confirm(env,o));
+  env.PAYMENTS_ACTIVE='false';
+  const summary=await parsed(await worker.fetch(request('/api/purchases/me?orderId=forged'),env));
+  assert.equal(summary.status,401);
+  const owned=await parsed(await worker.fetch(request('/api/purchases/me?orderId=forged','GET',undefined,confirmed.body.license),env));
+  assert.equal(owned.status,200);
+  assert.equal(owned.body.orderId,o.orderId);
+  assert.equal(owned.body.amount,9900);
+  assert.equal(owned.body.status,'paid');
+  assert.equal(owned.body.designCount,6);
+  assert.equal(owned.body.pngPerDownload,2);
+  for(const privateKey of ['paymentKey','payment_key','checkoutSecret','checkout_hash','license','license_hash','recoveryCode'])
+   assert.equal(JSON.stringify(owned.body).includes(privateKey),false);
+ }finally{globalThis.fetch=originalFetch;sqlite.close()}
+});
+test('Build36: refunds revoke receipt access; Toss outage returns 503 without removing paid order',async()=>{
+ const {env,sqlite}=makeEnvironment(),o=await newOrder(env),oldFetch=globalThis.fetch;
+ globalThis.fetch=async()=>Response.json(payment(o));
+ try{
+  const done=await parsed(await confirm(env,o));
+  globalThis.fetch=async()=>Response.json({error:'temp'},{status:503});
+  assert.equal((await worker.fetch(request('/api/purchases/me','GET',undefined,done.body.license),env)).status,503);
+  assert.equal(sqlite.prepare('SELECT status FROM orders WHERE order_id=?').get(o.orderId).status,'paid');
+  globalThis.fetch=async()=>Response.json(payment(o,'CANCELED'));
+  assert.equal((await worker.fetch(request('/api/purchases/me','GET',undefined,done.body.license),env)).status,401);
+  assert.equal(sqlite.prepare('SELECT status FROM orders WHERE order_id=?').get(o.orderId).status,'refunded');
+ }finally{globalThis.fetch=oldFetch;sqlite.close()}
+});

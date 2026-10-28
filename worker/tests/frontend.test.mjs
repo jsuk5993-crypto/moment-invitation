@@ -9,10 +9,15 @@ function scenario({mode='test',enabled=true,storedLicense=null,licenseStatus=200
  const status={textContent:''};
  const newControl=()=>({hidden:false,disabled:false,textContent:'',value:'',click:null,addEventListener(k,cb){if(k==='click')this.click=cb;}});
  const recoveryIssue=newControl(),recoveryIssueBtn=newControl(),recoveryRedeem=newControl(),recoveryRedeemBtn=newControl();
+ const purchaseHistory=newControl(),historyOrder=newControl(),historyAmount=newControl(),historyDate=newControl(),historyRefresh=newControl(),historyStatus=newControl();
+ purchaseHistory.hidden=true;
  const recoveryInput=newControl(),recoveryCodeBox=newControl(),recoveryCodeText=newControl(),recoveryCopy=newControl(),recoveryStatus=newControl();
  recoveryIssue.hidden=true;recoveryCodeBox.hidden=true;
  const agreement={checked:false,change:null,addEventListener(kind,cb){if(kind==='change')this.change=cb;}};
  const recoveryControls={
+  '#moment-purchase-history':purchaseHistory,'#moment-history-order':historyOrder,
+  '#moment-history-amount':historyAmount,'#moment-history-date':historyDate,
+  '#moment-history-refresh':historyRefresh,'#moment-history-status':historyStatus,
   '#moment-recovery-issue':recoveryIssue,'#moment-recovery-issue-btn':recoveryIssueBtn,
   '#moment-recovery-redeem':recoveryRedeem,'#moment-recovery-redeem-btn':recoveryRedeemBtn,
   '#moment-recovery-input':recoveryInput,'#moment-recovery-code':recoveryCodeBox,
@@ -40,6 +45,7 @@ function scenario({mode='test',enabled=true,storedLicense=null,licenseStatus=200
   if(path==='/api/orders'){orderBodies.push(JSON.parse(opts.body));return {ok:true,json:async()=>({amount:9900,orderId:'MOMENT_1234567',checkoutSecret:'a'.repeat(64)})};}
   if(path==='/api/recovery/issue')return {ok:true,json:async()=>({recoveryCode:'e'.repeat(64)})};
   if(path==='/api/recovery/redeem'){recoveryBodies.push(JSON.parse(opts.body));return {ok:true,json:async()=>({license:'f'.repeat(64),recoveryCode:'d'.repeat(64)})};}
+  if(path==='/api/purchases/me')return {ok:true,json:async()=>({status:'paid',orderId:'MOMENT_TEST_123',amount:9900,paidAt:1793100000000})};
   if(path==='/api/license')return {ok:licenseStatus===200,status:licenseStatus,json:async()=>({active:licenseStatus===200})};
   if(path.startsWith('/api/assets/'))return {ok:true,blob:async()=>new Blob(['sample'],{type:'image/webp'})};
   throw Error('Unknown '+path);
@@ -53,6 +59,7 @@ function scenario({mode='test',enabled=true,storedLicense=null,licenseStatus=200
    fetch,URL,Blob,crypto:webcrypto,navigator:{clipboard:{writeText:async()=>{}}}});
  return {buy,agreement,calls,orderBodies,session,plan,planTitle,badge,policy,note,local,status,
   recoveryIssue,recoveryIssueBtn,recoveryRedeem,recoveryRedeemBtn,recoveryInput,recoveryCodeBox,recoveryCodeText,recoveryBodies,recoveryStatus,
+  purchaseHistory,historyOrder,historyAmount,historyDate,historyRefresh,historyStatus,
   get activated(){return activated}};
 }
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
@@ -154,4 +161,14 @@ test('Build35: new browser rejects malformed code, redeems valid code and stores
  assert.equal(ctx.activated,1);
  assert.equal(ctx.recoveryCodeBox.hidden,false);
  assert.match(ctx.recoveryCodeText.textContent,/^dddddddd-/);
+});
+
+test('Build36: purchase summary is hidden before payment and visible after verified license',async()=>{
+ const guest=scenario();await tick();assert.equal(guest.purchaseHistory.hidden,true);
+ const buyer=scenario({storedLicense:'b'.repeat(64)});await tick();await tick();
+ assert.equal(buyer.purchaseHistory.hidden,false);
+ assert.equal(buyer.historyOrder.textContent,'MOMENT_TEST_123');
+ assert.equal(buyer.historyAmount.textContent,'9,900원');
+ assert.match(buyer.historyStatus.textContent,/결제가 확인된/);
+ assert.equal(buyer.calls.length,0);
 });
