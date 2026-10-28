@@ -40,13 +40,15 @@ jobs:
           print('Cloudflare TEST setup build:', setup.get('build'))
           print('Checkout checkbox style ready:', ui.get('checkboxStyleReady'))
           print('Checkout frontend JS ready:', ui.get('checkoutClientReady'))
+          print('Same-order confirmation retry ready:', ui.get('checkoutResumeReady'))
           print('Mode:', setup.get('mode'), 'Staging gate required:', setup.get('testAccessRequired'))
           assert health.get('ok') is True
           assert health.get('build') == '36'
           assert setup.get('build') == '36'
           assert setup.get('mode') == 'test'
           assert setup.get('testAccessRequired') is True
-          assert ui.get('ok') is True, 'Deployed checkout checkbox fix is missing'
+          assert ui.get('ok') is True, 'Deployed checkout checkbox or payment resume fix is missing'
+          assert ui.get('checkoutResumeReady') is True, 'Same-order payment confirmation retry unavailable'
           print('PASS: live TEST Worker diagnostics match Build 36')
           PY
             then

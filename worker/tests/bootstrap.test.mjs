@@ -143,16 +143,16 @@ test('Build36 hotfix: public UI health checks staged CSS and JS without returnin
  const good={
   ...env,
   STAGING_ASSETS:{async fetch(request){
-    const css=new URL(request.url).pathname.endsWith('.css');
-    return new Response(css?'/* Build 36 hotfix: the legacy app globally sets input */':'구매 안내를 확인하려면 위 안내문 아래의 네모 체크박스');
+    const path=new URL(request.url).pathname;
+    return new Response(path.endsWith('.css')?'/* Build 36 hotfix: the legacy app globally sets input */':path.endsWith('success.html')?'moment_pending_confirm_v1':'구매 안내를 확인하려면 위 안내문 아래의 네모 체크박스 · 기존 결제 승인 다시 확인');
   }}
  };
  const valid=await app.fetch(req('GET','/api/ui-health'),good);
  assert.equal(valid.status,200);
- assert.deepEqual(await valid.json(),{ok:true,checkboxStyleReady:true,checkoutClientReady:true});
+ assert.deepEqual(await valid.json(),{ok:true,checkboxStyleReady:true,checkoutClientReady:true,checkoutResumeReady:true});
  const missing=await app.fetch(req('GET','/api/ui-health'),env);
  assert.equal(missing.status,503);
- assert.deepEqual(await missing.json(),{ok:false,checkboxStyleReady:false,checkoutClientReady:false});
+ assert.deepEqual(await missing.json(),{ok:false,checkboxStyleReady:false,checkoutClientReady:false,checkoutResumeReady:false});
  const wrong=await app.fetch(req('GET','/api/ui-health'),{...env,STAGING_ASSETS:{fetch:async()=>new Response('old-version')}});
  assert.equal(wrong.status,503);
  assert.equal((await wrong.json()).ok,false);

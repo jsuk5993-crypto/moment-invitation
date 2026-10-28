@@ -122,17 +122,21 @@ async function handle(req, env, pathname) {
     // Build36 regression: smoke-test deployed, password-protected static UI
     // without disclosing its contents or weakening the TEST staging gate.
     try {
-      if(!env.STAGING_ASSETS?.fetch)return json({ok:false,checkboxStyleReady:false,checkoutClientReady:false},503);
+      if(!env.STAGING_ASSETS?.fetch)return json({ok:false,checkboxStyleReady:false,checkoutClientReady:false,checkoutResumeReady:false},503);
       const origin=new URL(req.url).origin;
-      const [css,js]=await Promise.all([
+      const [css,js,success]=await Promise.all([
         env.STAGING_ASSETS.fetch(new Request(origin+'/payment/payment-style.css')),
-        env.STAGING_ASSETS.fetch(new Request(origin+'/payment/payment-client.js'))
+        env.STAGING_ASSETS.fetch(new Request(origin+'/payment/payment-client.js')),
+        env.STAGING_ASSETS.fetch(new Request(origin+'/payment/success.html'))
       ]);
       const checkboxStyleReady=css.ok && (await css.text()).includes('Build 36 hotfix: the legacy app globally sets input');
-      const checkoutClientReady=js.ok && (await js.text()).includes('구매 안내를 확인하려면 위 안내문 아래의 네모 체크박스');
-      const ok=checkboxStyleReady&&checkoutClientReady;
-      return json({ok,checkboxStyleReady,checkoutClientReady},ok?200:503);
-    }catch{return json({ok:false,checkboxStyleReady:false,checkoutClientReady:false},503);}
+      const clientText=js.ok?await js.text():'';
+      const checkoutClientReady=clientText.includes('구매 안내를 확인하려면 위 안내문 아래의 네모 체크박스');
+      const checkoutResumeReady=clientText.includes('기존 결제 승인 다시 확인')
+        && success.ok && (await success.text()).includes('moment_pending_confirm_v1');
+      const ok=checkboxStyleReady&&checkoutClientReady&&checkoutResumeReady;
+      return json({ok,checkboxStyleReady,checkoutClientReady,checkoutResumeReady},ok?200:503);
+    }catch{return json({ok:false,checkboxStyleReady:false,checkoutClientReady:false,checkoutResumeReady:false},503);}
   }
   if (pathname === '/api/db-health' && req.method === 'GET') {
     // Public read-only diagnostic. Never returns order records or credentials.
