@@ -149,3 +149,10 @@ test('RC1 paused seller profile: existing paid buyers still restore full premium
  assert.equal(newcomer.orderBodies.length,0);
  assert.match(newcomer.status.textContent,/새 결제를 받지 않습니다/);
 });
+
+test('RC1 customer storefront: no nonfunctional survey form is advertised as an active service',()=>{
+ const html=readFileSync(new URL('../../site-live/index.html',import.meta.url),'utf8');
+ assert.match(html,/<a href="support\.html">고객지원<\/a>/);
+ assert.match(html,/section#survey4\{display:none!important\}/);
+ assert.equal(html.includes('<a href="#survey4">사용 후기</a>'),false);
+});
