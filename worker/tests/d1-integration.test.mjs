@@ -107,6 +107,8 @@ test('D1 integration: full refund revokes the license and blocks R2',async()=>{
   assert.equal(result.status,200);
   assert.equal(sqlite.prepare('SELECT status FROM orders WHERE order_id = ?').get(o.orderId).status,'refunded');
   assert.equal((await worker.fetch(request('/api/license','GET',undefined,done.body.license),env)).status,401);
+  // An old checkout proof cannot resurrect the previous buyer session.
+  assert.equal((await confirm(env,o)).status,403);
   assert.equal((await worker.fetch(request('/api/assets/disco','GET',undefined,done.body.license),env)).status,401);
  }finally{globalThis.fetch=oldFetch;sqlite.close()}
 });

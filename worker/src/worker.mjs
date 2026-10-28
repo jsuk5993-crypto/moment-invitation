@@ -155,7 +155,7 @@ async function handle(req, env, pathname) {
       orderDatabaseBound:!!env.DB,premiumStorageBound:!!env.PREMIUM_ASSETS,
       paymentSwitchActive:env.PAYMENTS_ACTIVE==='true',
       // Build28: this is an immutable security rule, NOT an env variable.
-      build:'34',testAccessRequired:true,
+      build:'35',testAccessRequired:true,
       testAccessSecretConfigured:typeof env.TEST_ACCESS_SECRET==='string' && env.TEST_ACCESS_SECRET.length>0,
       testAccessReady:stageGateReady(env),
       publicOriginConfigured:!!env.PUBLIC_ORIGIN,
@@ -264,14 +264,14 @@ async function handle(req, env, pathname) {
     const verified=await verifyLicenseWithToss(env,order);
     if(verified==='inactive')return json({error:'denied'},401);
     if(verified!=='active')return json({error:'verification_unavailable',message:errors.unexpected},503);
-    const license=randomSecret(),nextCode=randomSecret();
+    const license=randomSecret(),nextCode=randomSecret(),invalidatedCheckout=randomSecret();
     // D1 batch is transactional. Both the one-use code rotation and the license
     // rotation succeed together, or neither does. A racing re-use cannot win twice.
     const results=await env.DB.batch([
       env.DB.prepare("UPDATE purchase_recovery SET recovery_hash=?,updated_at=? WHERE order_id=? AND recovery_hash=? AND EXISTS (SELECT 1 FROM orders WHERE order_id=? AND status='paid')")
         .bind(await sha(nextCode),now(),order.order_id,oldHash,order.order_id),
-      env.DB.prepare("UPDATE orders SET license_hash=? WHERE order_id=? AND status='paid' AND EXISTS (SELECT 1 FROM purchase_recovery WHERE order_id=? AND recovery_hash=?)")
-        .bind(await sha(license),order.order_id,order.order_id,await sha(nextCode))
+      env.DB.prepare("UPDATE orders SET license_hash=?,checkout_hash=? WHERE order_id=? AND status='paid' AND EXISTS (SELECT 1 FROM purchase_recovery WHERE order_id=? AND recovery_hash=?)")
+        .bind(await sha(license),await sha(invalidatedCheckout),order.order_id,order.order_id,await sha(nextCode))
     ]);
     if(results?.[0]?.meta?.changes!==1 || results?.[1]?.meta?.changes!==1)
       return json({error:'code_used',message:'이미 사용한 복원코드예요.'},409);
