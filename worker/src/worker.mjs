@@ -4,6 +4,7 @@ import {handleStagingRequest,hasStageSession,stageGateReady} from './staging.mjs
  * Never deploy with real keys in source control. PAYMENTS_ACTIVE defaults OFF.
  */
 const PRICE_KRW = 9900;
+// Build 35: accountless recovery codes are single-use, 256-bit secrets kept hashed in D1.
 const PURCHASE_POLICY_VERSION = '2026-10-28-v1';
 const ASSETS = new Set(['city', 'stars', 'sunset', 'retro', 'med', 'disco']);
 const MAX_ORDER_AGE_MS = 60 * 60 * 1000;
@@ -50,6 +51,10 @@ async function issueLicense(env, orderId) {
   const hash = await sha(token);
   await env.DB.prepare('UPDATE orders SET license_hash = ? WHERE order_id = ? AND status = ?').bind(hash, orderId, 'paid').run();
   return token;
+}
+async function ensureRecoveryTable(env) {
+  // Upgrade existing TEST D1 databases without modifying orders or checkout proofs.
+  await env.DB.prepare('CREATE TABLE IF NOT EXISTS purchase_recovery (order_id TEXT PRIMARY KEY, recovery_hash TEXT NOT NULL UNIQUE, updated_at INTEGER NOT NULL, FOREIGN KEY (order_id) REFERENCES orders(order_id))').run();
 }
 async function readOrder(env, orderId) { return env.DB.prepare('SELECT * FROM orders WHERE order_id = ?').bind(orderId).first(); }
 async function updatePaid(env, orderId, paymentKey) {
@@ -111,7 +116,7 @@ async function readJSON(req) {
 async function handle(req, env, pathname) {
   if (pathname === '/api/health' && req.method === 'GET') {
     // Safe public bootstrap diagnostic: never exposes credentials or purchase data.
-    return json({ok:true, service:'moment-payments', build:'34', paymentsEnabled:isEnabled(env)});
+    return json({ok:true, service:'moment-payments', build:'35', paymentsEnabled:isEnabled(env)});
   }
   if (pathname === '/api/db-health' && req.method === 'GET') {
     // Public read-only diagnostic. Never returns order records or credentials.
@@ -162,7 +167,8 @@ async function handle(req, env, pathname) {
   }
   // Orders/confirmation can be paused, while already paid customers retain read access.
   const readerOnly = pathname==='/api/license' || pathname.startsWith('/api/assets/')
-    || pathname==='/api/reconcile' || pathname==='/api/toss-webhook';
+    || pathname==='/api/reconcile' || pathname==='/api/toss-webhook'
+    || pathname==='/api/recovery/issue' || pathname==='/api/recovery/redeem';
   if(!isEnabled(env) && !(readerOnly && isReaderReady(env)))
     return json({error:'disabled',message:errors.disabled},503);
   if (pathname === '/api/orders' && req.method === 'POST') {
@@ -228,6 +234,48 @@ async function handle(req, env, pathname) {
     }
     await updatePaid(env,b.orderId,b.paymentKey);
     return json({paid:true,license:await issueLicense(env,b.orderId)});
+  }
+  if (pathname === '/api/recovery/issue' && req.method === 'POST') {
+    // Only a current paid bearer license can issue/rotate a recovery code.
+    // Every issue replaces the previous code. Never store plaintext codes.
+    const owned=await licenseOrder(req,env);
+    if(owned?.status!=='paid') return json({error:'denied'},401);
+    const verified=await verifyLicenseWithToss(env,owned);
+    if(verified==='inactive')return json({error:'denied'},401);
+    if(verified!=='active')return json({error:'verification_unavailable',message:errors.unexpected},503);
+    await ensureRecoveryTable(env);
+    const recoveryCode=randomSecret();
+    const result=await env.DB.prepare('INSERT INTO purchase_recovery (order_id,recovery_hash,updated_at) SELECT order_id, ?, ? FROM orders WHERE order_id=? AND status=? AND license_hash=? ON CONFLICT(order_id) DO UPDATE SET recovery_hash=excluded.recovery_hash,updated_at=excluded.updated_at')
+      .bind(await sha(recoveryCode),now(),owned.order_id,'paid',await sha(authToken(req))).run();
+    if(result?.meta?.changes!==1)return json({error:'denied'},401);
+    return json({recoveryCode,oneTime:true,warning:'이전 복원코드는 무효화됩니다. 새 코드를 안전하게 보관하세요.'});
+  }
+  if (pathname === '/api/recovery/redeem' && req.method === 'POST') {
+    // Possession of a random recovery code, not an order ID or email, is proof.
+    const b=await readJSON(req);
+    const code=typeof b.recoveryCode==='string' ? b.recoveryCode.replace(/[\s-]/g,'').toLowerCase() : '';
+    if(!/^[a-f0-9]{64}$/.test(code))return json({error:'invalid_code'},400);
+    await ensureRecoveryTable(env);
+    const oldHash=await sha(code);
+    const found=await env.DB.prepare('SELECT order_id FROM purchase_recovery WHERE recovery_hash=?').bind(oldHash).first();
+    if(!found)return json({error:'invalid_code',message:'복원코드가 유효하지 않거나 이미 사용됐어요.'},401);
+    const order=await readOrder(env,found.order_id);
+    if(order?.status!=='paid')return json({error:'denied'},401);
+    const verified=await verifyLicenseWithToss(env,order);
+    if(verified==='inactive')return json({error:'denied'},401);
+    if(verified!=='active')return json({error:'verification_unavailable',message:errors.unexpected},503);
+    const license=randomSecret(),nextCode=randomSecret();
+    // D1 batch is transactional. Both the one-use code rotation and the license
+    // rotation succeed together, or neither does. A racing re-use cannot win twice.
+    const results=await env.DB.batch([
+      env.DB.prepare("UPDATE purchase_recovery SET recovery_hash=?,updated_at=? WHERE order_id=? AND recovery_hash=? AND EXISTS (SELECT 1 FROM orders WHERE order_id=? AND status='paid')")
+        .bind(await sha(nextCode),now(),order.order_id,oldHash,order.order_id),
+      env.DB.prepare("UPDATE orders SET license_hash=? WHERE order_id=? AND status='paid' AND EXISTS (SELECT 1 FROM purchase_recovery WHERE order_id=? AND recovery_hash=?)")
+        .bind(await sha(license),order.order_id,order.order_id,await sha(nextCode))
+    ]);
+    if(results?.[0]?.meta?.changes!==1 || results?.[1]?.meta?.changes!==1)
+      return json({error:'code_used',message:'이미 사용한 복원코드예요.'},409);
+    return json({restored:true,license,recoveryCode:nextCode,oneTime:true});
   }
   if (pathname === '/api/license' && req.method === 'GET') {
     const order=await licenseOrder(req,env);

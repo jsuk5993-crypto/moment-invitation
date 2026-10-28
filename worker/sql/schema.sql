@@ -11,6 +11,14 @@ CREATE TABLE IF NOT EXISTS orders (
 CREATE INDEX IF NOT EXISTS orders_paid_idx ON orders(status, paid_at);
 CREATE UNIQUE INDEX IF NOT EXISTS orders_license_idx ON orders(license_hash);
 
+-- Build 35: one-time purchase recovery code hashes, never plaintext.
+CREATE TABLE IF NOT EXISTS purchase_recovery (
+  order_id TEXT PRIMARY KEY,
+  recovery_hash TEXT NOT NULL UNIQUE,
+  updated_at INTEGER NOT NULL,
+  FOREIGN KEY(order_id) REFERENCES orders(order_id)
+);
+
 -- Build 34: evidence of a buyer's pre-checkout policy acknowledgement.
 -- No IP address, email, or personal data is stored here.
 CREATE TABLE IF NOT EXISTS purchase_acknowledgements (

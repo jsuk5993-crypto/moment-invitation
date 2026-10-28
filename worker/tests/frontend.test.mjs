@@ -7,8 +7,18 @@ const code=readFileSync(new URL('../../site/payment/payment-client.js',import.me
 function scenario({mode='test',enabled=true,storedLicense=null,licenseStatus=200}={}){
  const buy={disabled:true,textContent:'',click:null,addEventListener(kind,cb){if(kind==='click')this.click=cb}};
  const status={textContent:''};
+ const newControl=()=>({hidden:false,disabled:false,textContent:'',value:'',click:null,addEventListener(k,cb){if(k==='click')this.click=cb;}});
+ const recoveryIssue=newControl(),recoveryIssueBtn=newControl(),recoveryRedeem=newControl(),recoveryRedeemBtn=newControl();
+ const recoveryInput=newControl(),recoveryCodeBox=newControl(),recoveryCodeText=newControl(),recoveryCopy=newControl(),recoveryStatus=newControl();
+ recoveryIssue.hidden=true;recoveryCodeBox.hidden=true;
  const agreement={checked:false,change:null,addEventListener(kind,cb){if(kind==='change')this.change=cb;}};
- const panel={innerHTML:'',className:'',querySelector:s=>s==='#moment-buy'?buy:s==='#moment-policy-ack'?agreement:status};
+ const recoveryControls={
+  '#moment-recovery-issue':recoveryIssue,'#moment-recovery-issue-btn':recoveryIssueBtn,
+  '#moment-recovery-redeem':recoveryRedeem,'#moment-recovery-redeem-btn':recoveryRedeemBtn,
+  '#moment-recovery-input':recoveryInput,'#moment-recovery-code':recoveryCodeBox,
+  '#moment-recovery-code-value':recoveryCodeText,'#moment-recovery-copy':recoveryCopy,
+  '#moment-recovery-status':recoveryStatus};
+ const panel={innerHTML:'',className:'',querySelector:s=>s==='#moment-buy'?buy:s==='#moment-policy-ack'?agreement:recoveryControls[s]||status};
  const note={innerHTML:''};
  const planTitle={textContent:''},priceHint={textContent:''},badge={textContent:''},benefit={textContent:''};
  const intro={textContent:''},policy={textContent:''},divider={textContent:''};
@@ -21,25 +31,29 @@ function scenario({mode='test',enabled=true,storedLicense=null,licenseStatus=200
   ['.collection-divider.paid small',divider]
  ]).get(selector)||null;
  const local=new Map(storedLicense?[['moment_premium_receipt_v1',storedLicense]]:[]);
- const session=new Map(),calls=[],orderBodies=[];let activated=0;
+ const session=new Map(),calls=[],orderBodies=[],recoveryBodies=[];let activated=0;
  const TossPayments=key=>({payment:({customerKey})=>({requestPayment:async data=>calls.push({key,customerKey,data})})});
  const config={enabled,mode,amount:9900,currency:'KRW',clientKey:mode==='test'?'test_ck_mock':'live_ck_mock'};
  const fetch=async(url,opts={})=>{
   const path=new URL(url).pathname;
   if(path==='/api/config')return {ok:true,json:async()=>config};
   if(path==='/api/orders'){orderBodies.push(JSON.parse(opts.body));return {ok:true,json:async()=>({amount:9900,orderId:'MOMENT_1234567',checkoutSecret:'a'.repeat(64)})};}
+  if(path==='/api/recovery/issue')return {ok:true,json:async()=>({recoveryCode:'e'.repeat(64)})};
+  if(path==='/api/recovery/redeem'){recoveryBodies.push(JSON.parse(opts.body));return {ok:true,json:async()=>({license:'f'.repeat(64),recoveryCode:'d'.repeat(64)})};}
   if(path==='/api/license')return {ok:licenseStatus===200,status:licenseStatus,json:async()=>({active:licenseStatus===200})};
   if(path.startsWith('/api/assets/'))return {ok:true,blob:async()=>new Blob(['sample'],{type:'image/webp'})};
   throw Error('Unknown '+path);
  };
- const window={MOMENT_PAYMENT_API:'https://example.workers.dev',
+ const window={confirm:()=>true,MOMENT_PAYMENT_API:'https://example.workers.dev',
   MOMENT_ACCESS:{async activate(files){activated++;assert.equal(Object.keys(files).length,6)}},TossPayments};
  const document={baseURI:'https://example.workers.dev/',getElementById:id=>id==='premiumActions'?note:null,
    querySelector:query,createElement:tag=>tag==='section'?panel:null};
  runInNewContext(code,{window,document,localStorage:{getItem:k=>local.get(k)||null,setItem:(k,v)=>local.set(k,v),removeItem:k=>local.delete(k)},
    sessionStorage:{getItem:k=>session.get(k)||null,setItem:(k,v)=>session.set(k,v)},
-   fetch,URL,Blob,crypto:webcrypto});
- return {buy,agreement,calls,orderBodies,session,plan,planTitle,badge,policy,note,local,status,get activated(){return activated}};
+   fetch,URL,Blob,crypto:webcrypto,navigator:{clipboard:{writeText:async()=>{}}}});
+ return {buy,agreement,calls,orderBodies,session,plan,planTitle,badge,policy,note,local,status,
+  recoveryIssue,recoveryIssueBtn,recoveryRedeem,recoveryRedeemBtn,recoveryInput,recoveryCodeBox,recoveryCodeText,recoveryBodies,recoveryStatus,
+  get activated(){return activated}};
 }
 const tick=()=>new Promise(resolve=>setImmediate(resolve));
 test('Build22: test config enables only test checkout button',async()=>{
@@ -117,4 +131,27 @@ test('Build34: no agreement keeps the purchase button disabled and cannot create
  assert.equal(ctx.buy.disabled,false);
  ctx.agreement.checked=false;ctx.agreement.change();
  assert.equal(ctx.buy.disabled,true);
+});
+
+// Build35 UX: existing purchase offers an export; new browser can redeem saved code.
+test('Build35: existing buyer issues a one-use code without another payment',async()=>{
+ const ctx=scenario({storedLicense:'b'.repeat(64)});await tick();await tick();
+ assert.equal(ctx.recoveryIssue.hidden,false);
+ assert.equal(ctx.recoveryRedeem.hidden,true);
+ await ctx.recoveryIssueBtn.click();await tick();
+ assert.equal(ctx.recoveryCodeBox.hidden,false);
+ assert.match(ctx.recoveryCodeText.textContent,/^eeeeeeee-/);
+ assert.equal(ctx.calls.length,0);
+});
+test('Build35: new browser rejects malformed code, redeems valid code and stores new license',async()=>{
+ const ctx=scenario();await tick();
+ ctx.recoveryInput.value='too short';await ctx.recoveryRedeemBtn.click();
+ assert.equal(ctx.recoveryBodies.length,0);
+ ctx.recoveryInput.value='A'.repeat(64);await ctx.recoveryRedeemBtn.click();await tick();
+ assert.equal(ctx.recoveryBodies.length,1);
+ assert.equal(ctx.recoveryBodies[0].recoveryCode,'a'.repeat(64));
+ assert.equal(ctx.local.get('moment_premium_receipt_v1'),'f'.repeat(64));
+ assert.equal(ctx.activated,1);
+ assert.equal(ctx.recoveryCodeBox.hidden,false);
+ assert.match(ctx.recoveryCodeText.textContent,/^dddddddd-/);
 });

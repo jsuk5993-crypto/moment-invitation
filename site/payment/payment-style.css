@@ -22,3 +22,16 @@
 .plan4.active .moment-purchase-info a{color:#ecf5c8;text-decoration:underline;text-underline-offset:3px;font-size:11px}
 .plan4.active .moment-ack-label{display:flex;align-items:flex-start;gap:9px;margin-top:15px;padding-top:12px;border-top:1px solid #708574;cursor:pointer;color:#f0f7e8;font-size:12px;line-height:1.65}
 .plan4.active .moment-ack-label input{flex:0 0 18px;width:18px;height:18px;margin:2px 0 0;accent-color:#d9eabb;cursor:pointer}
+
+/* Build 35: accessible self-custody recovery, always secondary to checkout. */
+.plan4.active .moment-recovery{margin-top:18px;padding:14px;border:1px solid #738b77;border-radius:11px;background:#293f31;color:#edf6e9;text-align:left}
+.plan4.active .moment-recovery strong{display:block;font-size:12px;font-weight:800}
+.plan4.active .moment-recovery p{font-size:11px;color:#dceadb;line-height:1.7;margin:7px 0 11px}
+.plan4.active .moment-recovery label{display:block;font-size:11px;margin:8px 0 5px}
+.plan4.active .moment-recovery input{box-sizing:border-box;width:100%;padding:12px 10px;border-radius:8px;border:1px solid #aec3b2;background:#f8fbf6;color:#213d28;font-size:12px;letter-spacing:.04em}
+.plan4.active .moment-recovery button{margin-top:8px;min-height:40px;font-size:12px;background:transparent;color:#f1f8e8;border:1px solid #a4c1a4;box-shadow:none;border-radius:8px}
+.plan4.active .moment-recovery button:hover:not(:disabled){background:#405c47}
+.plan4.active .moment-recovery button:disabled{opacity:.5;cursor:not-allowed}
+.plan4.active .moment-recovery code{display:block;overflow-wrap:anywhere;background:#f6fbef;padding:12px;border-radius:8px;color:#213d28;font:11px/1.8 ui-monospace,monospace;user-select:all}
+.plan4.active .moment-recovery [hidden]{display:none!important}
+.plan4.active #moment-recovery-status{margin:10px 0 0;font-size:11px;min-height:15px}

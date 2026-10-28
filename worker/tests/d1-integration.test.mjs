@@ -23,6 +23,11 @@ function makeEnvironment() {
   const sqlite = new DatabaseSync(':memory:');
   sqlite.exec(schema);
   const DB={
+    async batch(statements){
+      sqlite.exec('BEGIN');
+      try{const outputs=[];for(const stmt of statements)outputs.push(await stmt.run());sqlite.exec('COMMIT');return outputs;}
+      catch(e){sqlite.exec('ROLLBACK');throw e;}
+    },
     prepare(sql) { return {
       async run(){const result=sqlite.prepare(sql).run();return {meta:{changes:result.changes}}},
       bind(...values) {return {
@@ -262,4 +267,62 @@ test('Build34: D1 audit table persists exact policy version and timestamp with o
   assert.equal(row.policy_version,'2026-10-28-v1');
   assert.ok(row.acknowledged_at>0);
  }finally{sqlite.close()}
+});
+
+// Build35: accountless one-use recovery code, bound to an authoritative paid order.
+test('Build35: current paid buyer issues code, new device redeems once, old token and code expire',async()=>{
+ const {env,sqlite}=makeEnvironment(),o=await newOrder(env),originalFetch=globalThis.fetch;
+ globalThis.fetch=async()=>Response.json(payment(o));
+ try {
+  const done=await parsed(await confirm(env,o));
+  const issued=await parsed(await worker.fetch(request('/api/recovery/issue','POST',undefined,done.body.license),env));
+  assert.equal(issued.status,200);assert.match(issued.body.recoveryCode,/^[a-f0-9]{64}$/);
+  const row=sqlite.prepare('SELECT recovery_hash FROM purchase_recovery WHERE order_id=?').get(o.orderId);
+  assert.notEqual(row.recovery_hash,issued.body.recoveryCode);
+  const recovered=await parsed(await worker.fetch(request('/api/recovery/redeem','POST',{recoveryCode:issued.body.recoveryCode}),env));
+  assert.equal(recovered.status,200);assert.equal(recovered.body.restored,true);
+  assert.match(recovered.body.license,/^[a-f0-9]{64}$/);
+  assert.notEqual(recovered.body.license,done.body.license);
+  assert.notEqual(recovered.body.recoveryCode,issued.body.recoveryCode);
+  assert.equal((await worker.fetch(request('/api/license','GET',undefined,done.body.license),env)).status,401);
+  assert.equal((await worker.fetch(request('/api/license?verify=1','GET',undefined,recovered.body.license),env)).status,200);
+  assert.equal((await worker.fetch(request('/api/assets/disco','GET',undefined,recovered.body.license),env)).status,200);
+  assert.equal((await worker.fetch(request('/api/recovery/redeem','POST',{recoveryCode:issued.body.recoveryCode}),env)).status,401);
+  assert.equal((await worker.fetch(request('/api/recovery/redeem','POST',{recoveryCode:recovered.body.recoveryCode.toUpperCase().match(/.{1,8}/g).join('-')}),env)).status,200);
+ }finally{globalThis.fetch=originalFetch;sqlite.close()}
+});
+test('Build35: wrong or malformed codes and missing purchase auth never grant access',async()=>{
+ const {env,sqlite}=makeEnvironment();try{
+  assert.equal((await worker.fetch(request('/api/recovery/issue','POST'),env)).status,401);
+  assert.equal((await worker.fetch(request('/api/recovery/redeem','POST',{recoveryCode:'short'}),env)).status,400);
+  assert.equal((await worker.fetch(request('/api/recovery/redeem','POST',{recoveryCode:'c'.repeat(64)}),env)).status,401);
+  assert.equal(sqlite.prepare('SELECT count(*) AS n FROM purchase_recovery').get().n,0);
+ }finally{sqlite.close()}
+});
+test('Build35: refund, Toss outage, and paused checkout cannot bypass purchase verification',async()=>{
+ const {env,sqlite}=makeEnvironment(),o=await newOrder(env),originalFetch=globalThis.fetch;
+ globalThis.fetch=async()=>Response.json(payment(o));
+ try{
+  const done=await parsed(await confirm(env,o));
+  const issued=await parsed(await worker.fetch(request('/api/recovery/issue','POST',undefined,done.body.license),env));
+  env.PAYMENTS_ACTIVE='false'; // recovery still permitted for already paid buyers
+  globalThis.fetch=async()=>Response.json({error:'timeout'},{status:503});
+  assert.equal((await worker.fetch(request('/api/recovery/redeem','POST',{recoveryCode:issued.body.recoveryCode}),env)).status,503);
+  assert.equal((await worker.fetch(request('/api/recovery/issue','POST',undefined,done.body.license),env)).status,503);
+  globalThis.fetch=async()=>Response.json(payment(o,'CANCELED'));
+  assert.equal((await worker.fetch(request('/api/recovery/redeem','POST',{recoveryCode:issued.body.recoveryCode}),env)).status,401);
+  assert.equal(sqlite.prepare('SELECT status FROM orders WHERE order_id=?').get(o.orderId).status,'refunded');
+  assert.equal((await worker.fetch(request('/api/recovery/redeem','POST',{recoveryCode:issued.body.recoveryCode}),env)).status,401);
+ }finally{globalThis.fetch=originalFetch;sqlite.close()}
+});
+test('Build35: issuing another recovery code invalidates previous code',async()=>{
+ const {env,sqlite}=makeEnvironment(),o=await newOrder(env),oldFetch=globalThis.fetch;
+ globalThis.fetch=async()=>Response.json(payment(o));
+ try{
+  const done=await parsed(await confirm(env,o));
+  const issue=async()=> (await parsed(await worker.fetch(request('/api/recovery/issue','POST',undefined,done.body.license),env))).body.recoveryCode;
+  const oldCode=await issue(),newCode=await issue();assert.notEqual(oldCode,newCode);
+  assert.equal((await worker.fetch(request('/api/recovery/redeem','POST',{recoveryCode:oldCode}),env)).status,401);
+  assert.equal((await worker.fetch(request('/api/recovery/redeem','POST',{recoveryCode:newCode}),env)).status,200);
+ }finally{globalThis.fetch=oldFetch;sqlite.close()}
 });
