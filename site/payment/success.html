@@ -1,4 +1,4 @@
-<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>MOMENT · 결제 확인</title><style>
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="referrer" content="no-referrer"><title>MOMENT · 결제 확인</title><style>
 :root{color-scheme:light;font-family:'Apple SD Gothic Neo','Malgun Gothic',sans-serif;color:#282b33;background:#f8f5fb}body{display:grid;place-items:center;min-height:100vh;margin:0;padding:20px;box-sizing:border-box}.panel{background:white;border:1px solid #e6e2eb;border-radius:22px;max-width:500px;width:100%;box-sizing:border-box;padding:42px 30px;box-shadow:0 14px 50px #1a12300d;text-align:center}h1{font-size:26px}p{line-height:1.75;color:#666273}a{display:inline-block;margin-top:20px;border-radius:10px;padding:15px 22px;background:#453669;color:white;text-decoration:none;font-weight:700}
 </style></head><body><main class="panel"><div style="font:21px Georgia,serif;letter-spacing:.22em;color:#806e9f">MOMENT</div><h1>결제 승인 확인 중</h1><p id="result" role="status">카드 인증 이후 실제 결제 승인을 확인하고 있어요.</p><a href="../index.html">초대장 편집기로 돌아가기</a></main>
 <script src="payment-config.js"></script><script>
@@ -17,5 +17,8 @@
   history.replaceState({},'',location.pathname);
   out.textContent='결제 승인 완료! 프리미엄 초대장으로 이동합니다.';
   setTimeout(()=>{location.replace('../index.html?premium=active#studio4')},900);
- }catch(e){history.replaceState({},'',location.pathname);out.textContent=(e.message||'승인 상태 확인에 실패했어요.')+' 결제가 실제로 승인됐을 수 있으니 중복 결제하지 마세요.';}
+ }catch(e){out.textContent=(e.message||'승인 상태 확인에 실패했어요.')+' 결제가 실제로 승인됐을 수 있으니 중복 결제하지 마세요.';
+  const retry=document.createElement('button');retry.type='button';retry.textContent='승인 결과 다시 확인';retry.style.cssText='display:block;margin:14px auto 0;border:1px solid #806e9f;border-radius:10px;background:#fff;color:#493668;padding:11px 14px;cursor:pointer;font-weight:700';retry.addEventListener('click',()=>location.reload());out.after(retry);
+  // Preserve the redirect payment proof for idempotent retry until verified.
+ }
 })();</script></body></html>
