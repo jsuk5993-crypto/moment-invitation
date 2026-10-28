@@ -110,7 +110,7 @@ async function readJSON(req) {
 async function handle(req, env, pathname) {
   if (pathname === '/api/health' && req.method === 'GET') {
     // Safe public bootstrap diagnostic: never exposes credentials or purchase data.
-    return json({ok:true, service:'moment-payments', build:'16', paymentsEnabled:isEnabled(env)});
+    return json({ok:true, service:'moment-payments', build:'31', paymentsEnabled:isEnabled(env)});
   }
   if (pathname === '/api/db-health' && req.method === 'GET') {
     // Public read-only diagnostic. Never returns order records or credentials.
@@ -149,7 +149,7 @@ async function handle(req, env, pathname) {
       orderDatabaseBound:!!env.DB,premiumStorageBound:!!env.PREMIUM_ASSETS,
       paymentSwitchActive:env.PAYMENTS_ACTIVE==='true',
       // Build28: this is an immutable security rule, NOT an env variable.
-      build:'28',testAccessRequired:true,
+      build:'31',testAccessRequired:true,
       testAccessSecretConfigured:typeof env.TEST_ACCESS_SECRET==='string' && env.TEST_ACCESS_SECRET.length>0,
       testAccessReady:stageGateReady(env),
       publicOriginConfigured:!!env.PUBLIC_ORIGIN,

@@ -46,3 +46,6 @@
 - https://docs.tosspayments.com/reference
 - https://docs.tosspayments.com/reference/using-api/webhook-events
 - https://docs.tosspayments.com/guides/v2/cancel-payment
+
+## 현재 배포 버전 확인
+Cloudflare 최신 GitHub 배포가 적용되면 `/api/payment-setup`의 `build` 값은 `"31"`이어야 합니다. 배포 성공과 진단 버전 일치를 먼저 확인한 다음 환불 테스트를 진행하세요.
