@@ -9,7 +9,7 @@ test('Build16 bootstrap health is available without DB, R2, or Toss credentials'
  const response=await app.fetch(req('GET','/api/health'),env);
  assert.equal(response.status,200);
  const body=await response.json();
- assert.deepEqual(body,{ok:true,service:'moment-payments',build:'38',paymentsEnabled:false});
+ assert.deepEqual(body,{ok:true,service:'moment-payments',build:'39',paymentsEnabled:false});
  assert.equal(response.headers.get('access-control-allow-origin'),testOrigin);
  assert.equal(response.headers.get('cache-control'),'no-store');
 });
@@ -80,7 +80,7 @@ test('Build19 payment readiness exposes only key-format booleans, with checkout 
  assert.equal(response.status,200);
  assert.deepEqual(await response.json(),{ok:true,mode:'test',clientKeyPresent:true,secretKeyPresent:true,
    clientKeyConfigured:true,secretKeyConfigured:true,orderDatabaseBound:true,premiumStorageBound:true,paymentSwitchActive:false,
-   build:'38',testAccessRequired:true,testAccessSecretConfigured:false,
+   build:'39',testAccessRequired:true,testAccessSecretConfigured:false,
    testAccessReady:false,publicOriginConfigured:true,paymentsEnabled:false});
  const responseText=await (await app.fetch(req('GET','/api/payment-setup'),valid)).text();
  assert.equal(responseText.includes('test_ck_example'),false);
@@ -123,7 +123,7 @@ test('Build23 setup diagnostics isolate the stage password and disabled switch w
 test('Build28 diagnostics distinguish missing secret bindings from wrong key format without disclosure',async()=>{
  const base={...env,DB:{},PREMIUM_ASSETS:{}};
  const missing=await (await app.fetch(req('GET','/api/payment-setup'),base)).json();
- assert.equal(missing.build,'38');
+ assert.equal(missing.build,'39');
  assert.equal(missing.clientKeyPresent,false);
  assert.equal(missing.secretKeyPresent,false);
  assert.equal(missing.clientKeyConfigured,false);
@@ -144,15 +144,15 @@ test('Build36 hotfix: public UI health checks staged CSS and JS without returnin
   ...env,
   STAGING_ASSETS:{async fetch(request){
     const path=new URL(request.url).pathname;
-    return new Response(path.endsWith('.css')?'/* Build 36 hotfix: the legacy app globally sets input */':path.endsWith('success.html')?'moment_pending_confirm_v1':'구매 안내를 확인하려면 위 안내문 아래의 네모 체크박스 · 기존 결제 승인 다시 확인 · MOMENT-recovery-code.txt · moment-recovery-download · moment-premium-go-studio · 프리미엄 배경 다운로드 확인 중');
+    return new Response(path.endsWith('.css')?'/* Build 36 hotfix: the legacy app globally sets input */':path.endsWith('success.html')?'moment_pending_confirm_v1':path.endsWith('index.html')?'function b12PNGValid(bytes) INVALID_PNG_PAIR b12-zip-help PNG 2장이 담긴 ZIP 다운로드를 요청했어요':'구매 안내를 확인하려면 위 안내문 아래의 네모 체크박스 · 기존 결제 승인 다시 확인 · MOMENT-recovery-code.txt · moment-recovery-download · moment-premium-go-studio · 프리미엄 배경 다운로드 확인 중');
   }}
  };
  const valid=await app.fetch(req('GET','/api/ui-health'),good);
  assert.equal(valid.status,200);
- assert.deepEqual(await valid.json(),{ok:true,checkboxStyleReady:true,checkoutClientReady:true,checkoutResumeReady:true,recoveryBackupReady:true,premiumDeliveryGuideReady:true});
+ assert.deepEqual(await valid.json(),{ok:true,checkboxStyleReady:true,checkoutClientReady:true,checkoutResumeReady:true,recoveryBackupReady:true,premiumDeliveryGuideReady:true,pngZipVerified:true});
  const missing=await app.fetch(req('GET','/api/ui-health'),env);
  assert.equal(missing.status,503);
- assert.deepEqual(await missing.json(),{ok:false,checkboxStyleReady:false,checkoutClientReady:false,checkoutResumeReady:false,recoveryBackupReady:false,premiumDeliveryGuideReady:false});
+ assert.deepEqual(await missing.json(),{ok:false,checkboxStyleReady:false,checkoutClientReady:false,checkoutResumeReady:false,recoveryBackupReady:false,premiumDeliveryGuideReady:false,pngZipVerified:false});
  const wrong=await app.fetch(req('GET','/api/ui-health'),{...env,STAGING_ASSETS:{fetch:async()=>new Response('old-version')}});
  assert.equal(wrong.status,503);
  assert.equal((await wrong.json()).ok,false);

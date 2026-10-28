@@ -116,18 +116,19 @@ async function readJSON(req) {
 async function handle(req, env, pathname) {
   if (pathname === '/api/health' && req.method === 'GET') {
     // Safe public bootstrap diagnostic: never exposes credentials or purchase data.
-    return json({ok:true, service:'moment-payments', build:'38', paymentsEnabled:isEnabled(env)});
+    return json({ok:true, service:'moment-payments', build:'39', paymentsEnabled:isEnabled(env)});
   }
   if (pathname === '/api/ui-health' && req.method === 'GET') {
     // Build36 regression: smoke-test deployed, password-protected static UI
     // without disclosing its contents or weakening the TEST staging gate.
     try {
-      if(!env.STAGING_ASSETS?.fetch)return json({ok:false,checkboxStyleReady:false,checkoutClientReady:false,checkoutResumeReady:false,recoveryBackupReady:false,premiumDeliveryGuideReady:false},503);
+      if(!env.STAGING_ASSETS?.fetch)return json({ok:false,checkboxStyleReady:false,checkoutClientReady:false,checkoutResumeReady:false,recoveryBackupReady:false,premiumDeliveryGuideReady:false,pngZipVerified:false},503);
       const origin=new URL(req.url).origin;
-      const [css,js,success]=await Promise.all([
+      const [css,js,success,index]=await Promise.all([
         env.STAGING_ASSETS.fetch(new Request(origin+'/payment/payment-style.css')),
         env.STAGING_ASSETS.fetch(new Request(origin+'/payment/payment-client.js')),
-        env.STAGING_ASSETS.fetch(new Request(origin+'/payment/success.html'))
+        env.STAGING_ASSETS.fetch(new Request(origin+'/payment/success.html')),
+        env.STAGING_ASSETS.fetch(new Request(origin+'/index.html'))
       ]);
       const checkboxStyleReady=css.ok && (await css.text()).includes('Build 36 hotfix: the legacy app globally sets input');
       const clientText=js.ok?await js.text():'';
@@ -138,9 +139,14 @@ async function handle(req, env, pathname) {
         && clientText.includes('moment-recovery-download');
       const premiumDeliveryGuideReady=clientText.includes('moment-premium-go-studio')
         && clientText.includes('프리미엄 배경 다운로드 확인 중');
-      const ok=checkboxStyleReady&&checkoutClientReady&&checkoutResumeReady&&recoveryBackupReady&&premiumDeliveryGuideReady;
-      return json({ok,checkboxStyleReady,checkoutClientReady,checkoutResumeReady,recoveryBackupReady,premiumDeliveryGuideReady},ok?200:503);
-    }catch{return json({ok:false,checkboxStyleReady:false,checkoutClientReady:false,checkoutResumeReady:false,recoveryBackupReady:false,premiumDeliveryGuideReady:false},503);}
+      const html=index.ok ? await index.text() : '';
+      const pngZipVerified=html.includes('function b12PNGValid(bytes)')
+        && html.includes('INVALID_PNG_PAIR')
+        && html.includes('b12-zip-help')
+        && html.includes('PNG 2장이 담긴 ZIP 다운로드를 요청했어요');
+      const ok=checkboxStyleReady&&checkoutClientReady&&checkoutResumeReady&&recoveryBackupReady&&premiumDeliveryGuideReady&&pngZipVerified;
+      return json({ok,checkboxStyleReady,checkoutClientReady,checkoutResumeReady,recoveryBackupReady,premiumDeliveryGuideReady,pngZipVerified},ok?200:503);
+    }catch{return json({ok:false,checkboxStyleReady:false,checkoutClientReady:false,checkoutResumeReady:false,recoveryBackupReady:false,premiumDeliveryGuideReady:false,pngZipVerified:false},503);}
   }
   if (pathname === '/api/db-health' && req.method === 'GET') {
     // Public read-only diagnostic. Never returns order records or credentials.
@@ -179,7 +185,7 @@ async function handle(req, env, pathname) {
       orderDatabaseBound:!!env.DB,premiumStorageBound:!!env.PREMIUM_ASSETS,
       paymentSwitchActive:env.PAYMENTS_ACTIVE==='true',
       // Build28: this is an immutable security rule, NOT an env variable.
-      build:'38',testAccessRequired:true,
+      build:'39',testAccessRequired:true,
       testAccessSecretConfigured:typeof env.TEST_ACCESS_SECRET==='string' && env.TEST_ACCESS_SECRET.length>0,
       testAccessReady:stageGateReady(env),
       publicOriginConfigured:!!env.PUBLIC_ORIGIN,

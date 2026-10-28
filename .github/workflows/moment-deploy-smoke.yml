@@ -7,6 +7,7 @@ on:
     paths:
       - 'worker/src/**'
       - 'site/payment/**'
+      - 'site/index.html'
       - '.github/workflows/moment-deploy-smoke.yml'
   workflow_dispatch:
 
@@ -43,17 +44,19 @@ jobs:
           print('Same-order confirmation retry ready:', ui.get('checkoutResumeReady'))
           print('Secure one-time recovery backup ready:', ui.get('recoveryBackupReady'))
           print('Premium PNG editor guide ready:', ui.get('premiumDeliveryGuideReady'))
+          print('Build39 PNG ZIP validation ready:', ui.get('pngZipVerified'))
           print('Mode:', setup.get('mode'), 'Staging gate required:', setup.get('testAccessRequired'))
           assert health.get('ok') is True
-          assert health.get('build') == '38'
-          assert setup.get('build') == '38'
+          assert health.get('build') == '39'
+          assert setup.get('build') == '39'
           assert setup.get('mode') == 'test'
           assert setup.get('testAccessRequired') is True
           assert ui.get('ok') is True, 'Deployed checkout checkbox or payment resume fix is missing'
           assert ui.get('checkoutResumeReady') is True, 'Same-order payment confirmation retry unavailable'
           assert ui.get('recoveryBackupReady') is True, 'Recovery TXT file save is unavailable'
           assert ui.get('premiumDeliveryGuideReady') is True, 'Premium PNG editor readiness guide unavailable'
-          print('PASS: live TEST Worker diagnostics match Build 38')
+          assert ui.get('pngZipVerified') is True, 'Latest PNG ZIP validation is not deployed'
+          print('PASS: live TEST Worker diagnostics match Build 39')
           PY
             then
               exit 0
