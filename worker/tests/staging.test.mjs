@@ -79,8 +79,8 @@ test('Build22: accidentally setting LIVE while staging never enables checkout',a
  const live={...env,PAYMENTS_ACTIVE:'true',PAYMENTS_MODE:'live',TOSS_CLIENT_KEY:'live_ck_qa',
    TOSS_SECRET_KEY:'live_sk_qa',DB:{},PREMIUM_ASSETS:{}};
  const response=await worker.fetch(req('/api/config',{headers:{cookie:await cookie()}}),live);
- assert.equal(response.status,200);
- assert.equal((await response.json()).enabled,false);
+ assert.equal(response.status,503);
+ assert.equal((await response.json()).error,'test_access_unconfigured');
  const setup=await worker.fetch(req('/api/payment-setup'),live);
  assert.equal((await setup.json()).paymentsEnabled,false);
 });

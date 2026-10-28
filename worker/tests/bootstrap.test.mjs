@@ -15,15 +15,13 @@ test('Build16 bootstrap health is available without DB, R2, or Toss credentials'
 });
 test('Build16 bootstrap does not expose a payment button or accept orders',async()=>{
  const config=await app.fetch(req('GET','/api/config'),env);
- assert.equal(config.status,200);
- const c=await config.json();
- assert.equal(c.enabled,false);
- assert.equal(c.clientKey,null);
+ assert.equal(config.status,503);
+ assert.equal((await config.json()).error,'test_access_unconfigured');
  const order=await app.fetch(new Request('https://moment-payments-test.example.workers.dev/api/orders',{
   method:'POST',headers:{origin:testOrigin,'content-type':'application/json'},body:'{}'
  }),env);
  assert.equal(order.status,503);
- assert.equal((await order.json()).error,'disabled');
+ assert.equal((await order.json()).error,'test_access_unconfigured');
 });
 test('Build16 wrong-origin bootstrap requests are blocked',async()=>{
  const response=await app.fetch(req('GET','/api/health','https://attacker.example'),env);
@@ -72,7 +70,7 @@ test('Build18 R2 reports missing assets safely and keeps payment disabled',async
  assert.deepEqual(await status.json(),{ok:false,storageConnected:true,assetsReady:5,assetsExpected:6});
  const order=await app.fetch(new Request('https://moment-payments-test.example.workers.dev/api/orders',{method:'POST',headers:{origin:testOrigin,'content-type':'application/json'},body:'{}'}),partialEnv);
  assert.equal(order.status,503);
- assert.equal((await order.json()).error,'disabled');
+ assert.equal((await order.json()).error,'test_access_unconfigured');
 });
 
 test('Build19 payment readiness exposes only key-format booleans, with checkout still OFF',async()=>{
