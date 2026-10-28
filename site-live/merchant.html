@@ -1,0 +1,11 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex"><title>MOMENT · 판매자 정보</title>
+<style>body{font:15px/1.8 system-ui,'Malgun Gothic',sans-serif;background:#f5f7f3;color:#29392b;margin:0;padding:24px}main{max-width:780px;margin:auto;background:white;padding:32px;border-radius:15px}h1{font-size:25px}dt{font-weight:700;color:#556554;margin-top:12px}dd{margin:0}a{color:#376044}p{line-height:1.8}.warning{border-left:4px solid #97684b;padding:13px;background:#fff4e6}</style></head><body><main><h1>판매자 정보</h1>
+<p class="warning" id="seller-warning">실제 판매자 정보를 검증하기 전이므로 정식 판매는 시작되지 않았습니다.</p><dl id="seller-details"></dl>
+<p><a href="support.html">고객지원</a> · <a href="payment/purchase-policy.html">환불 안내</a> · <a href="index.html">초대장 제작기로 돌아가기</a></p></main>
+<script src="merchant.js"></script><script>
+const m=window.MOMENT_MERCHANT||{},d=document.getElementById('seller-details');
+const rows=[['상호',m.name],['대표자',m.representative],['사업자등록번호',m.registrationNumber],['통신판매업 신고정보',m.ecommerceReport],['사업장 소재지',m.address],['고객 연락처',m.phone],['이메일',m.email]];
+for(const [label,value] of rows){const dt=document.createElement('dt'),dd=document.createElement('dd');dt.textContent=label;dd.textContent=value||'판매 전 확인 예정';d.append(dt,dd)}
+if(m.ready)document.getElementById('seller-warning').hidden=true;
+</script></body></html>

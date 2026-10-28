@@ -1,0 +1,85 @@
+.moment-checkout{margin-top:16px;padding:20px 18px;border:1px solid #e7dceb;background:#fffaff;border-radius:14px;color:#403652}
+.moment-payment-topline{display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:12px;font-weight:800;letter-spacing:.08em}.moment-payment-topline span{letter-spacing:0;color:#897493;font-weight:600}
+.moment-payment-explain{font-size:13px;line-height:1.6;margin:12px 0 14px;color:#63586e}
+.moment-checkout button{width:100%;background:#674c8c;color:#fff;border:0;border-radius:10px;font-weight:750;font-size:15px;min-height:48px;cursor:pointer}
+.moment-checkout button:disabled{background:#b6aebd;cursor:not-allowed}
+.moment-payment-status{color:#826e8d!important;font-size:12px!important;margin:12px 0 0!important}
+
+/* Build 29: the test checkout is visible inside the dark-green PREMIUM pricing card. */
+.plan4.active .moment-checkout{margin-top:16px;padding:16px 0 0;background:transparent;border:0;border-top:1px solid #607564;border-radius:0;color:#f2f7ef}
+.plan4.active .moment-payment-topline{color:#d8e4ce;font-size:11px;letter-spacing:.075em}
+.plan4.active .moment-payment-topline span{color:#bfd0b8;font-weight:550;font-size:11px}
+.plan4.active .moment-payment-explain{color:#d9e7d7;margin:10px 0 12px;font-size:12px;line-height:1.7}
+.plan4.active #moment-buy{width:100%;min-height:52px;padding:12px;background:#e4eecf;color:#263d2b;border:0;border-radius:10px;font-size:14px;font-weight:800;box-shadow:0 4px 15px #0b1f121a}
+.plan4.active #moment-buy:hover:not(:disabled){background:#f1f8de}
+.plan4.active #moment-buy:disabled{background:#788b78;color:#e8eee5;box-shadow:none;cursor:not-allowed}
+.plan4.active #moment-pay-status{color:#d9e7d7!important;font-size:11px!important;line-height:1.65;margin:9px 0 0!important}
+
+/* Build 34: pre-checkout digital product disclosure on green premium pricing card. */
+.plan4.active .moment-purchase-info{margin:14px 0 12px;padding:14px;border:1px solid #7e957e;border-radius:10px;background:#364b3b;color:#f5faf0}
+.plan4.active .moment-purchase-info strong{display:block;font-size:12px;font-weight:800;letter-spacing:-.01em}
+.plan4.active .moment-purchase-info p{margin:7px 0 9px;color:#e5ede1;font-size:11px;line-height:1.8}
+.plan4.active .moment-purchase-info a{color:#ecf5c8;text-decoration:underline;text-underline-offset:3px;font-size:11px}
+.plan4.active .moment-ack-label{display:flex;align-items:flex-start;gap:9px;margin-top:15px;padding-top:12px;border-top:1px solid #708574;cursor:pointer;color:#f0f7e8;font-size:12px;line-height:1.65}
+.plan4.active .moment-ack-label input{flex:0 0 18px;width:18px;height:18px;margin:2px 0 0;accent-color:#d9eabb;cursor:pointer}
+
+/* Build 35: accessible self-custody recovery, always secondary to checkout. */
+.plan4.active .moment-recovery{margin-top:18px;padding:14px;border:1px solid #738b77;border-radius:11px;background:#293f31;color:#edf6e9;text-align:left}
+.plan4.active .moment-recovery strong{display:block;font-size:12px;font-weight:800}
+.plan4.active .moment-recovery p{font-size:11px;color:#dceadb;line-height:1.7;margin:7px 0 11px}
+.plan4.active .moment-recovery label{display:block;font-size:11px;margin:8px 0 5px}
+.plan4.active .moment-recovery input{box-sizing:border-box;width:100%;padding:12px 10px;border-radius:8px;border:1px solid #aec3b2;background:#f8fbf6;color:#213d28;font-size:12px;letter-spacing:.04em}
+.plan4.active .moment-recovery button{margin-top:8px;min-height:40px;font-size:12px;background:transparent;color:#f1f8e8;border:1px solid #a4c1a4;box-shadow:none;border-radius:8px}
+.plan4.active .moment-recovery button:hover:not(:disabled){background:#405c47}
+.plan4.active .moment-recovery button:disabled{opacity:.5;cursor:not-allowed}
+.plan4.active .moment-recovery code{display:block;overflow-wrap:anywhere;background:#f6fbef;padding:12px;border-radius:8px;color:#213d28;font:11px/1.8 ui-monospace,monospace;user-select:all}
+.plan4.active .moment-recovery [hidden]{display:none!important}
+.plan4.active #moment-recovery-status{margin:10px 0 0;font-size:11px;min-height:15px}
+
+/* Build36: accessible, non-sensitive purchase summary for paid browser only. */
+.plan4.active .moment-confirm-retry{margin-top:12px;padding:13px;border:1px solid #b4c7a7;border-radius:9px;background:#304938;color:#eef8e7}
+.plan4.active .moment-confirm-retry[hidden]{display:none!important}
+.plan4.active .moment-confirm-retry strong{font-size:12px}
+.plan4.active .moment-confirm-retry p{font-size:11px;line-height:1.7;color:#e4f1e0}
+.plan4.active .moment-confirm-retry button{min-height:42px;margin:5px 0;border:1px solid #b4c7a7;background:#eef6dc;color:#23402a}
+.plan4.active .moment-purchase-history{margin-top:17px;padding:14px;border:1px solid #829881;border-radius:11px;background:#314938;color:#eef7e9;text-align:left}
+.plan4.active .moment-purchase-history[hidden]{display:none!important}
+.plan4.active .moment-purchase-history strong{display:block;font-size:12px;font-weight:800}
+.plan4.active .moment-purchase-history dl{display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px 12px;margin:12px 0;font-size:11px;line-height:1.6}
+.plan4.active .moment-purchase-history dt{color:#c5d9bd}
+.plan4.active .moment-purchase-history dd{margin:0;overflow-wrap:anywhere;color:#f5faef}
+.plan4.active .moment-purchase-history button{min-height:38px;font-size:11px;background:transparent;color:#f1f8e8;border:1px solid #a4c1a4;box-shadow:none}
+.plan4.active .moment-purchase-history p{margin:9px 0 0;color:#dceadb;font-size:11px;line-height:1.65}
+
+/* Build 36 hotfix: the legacy app globally sets input{appearance:none}.
+   Restore the native checkbox for mandatory purchase acknowledgement. */
+.plan4.active .moment-ack-label{display:flex;align-items:flex-start;gap:11px;padding:12px;margin-top:13px;border:1px solid #a3b99d;border-radius:8px;background:#263e2e;cursor:pointer}
+.plan4.active .moment-ack-label input[type="checkbox"]{
+  -webkit-appearance:checkbox!important;
+  appearance:checkbox!important;
+  display:inline-block!important;
+  visibility:visible!important;
+  opacity:1!important;
+  position:static!important;
+  flex:0 0 21px;
+  width:21px;
+  height:21px;
+  min-width:21px;
+  min-height:21px;
+  margin:1px 0 0;
+  padding:0;
+  accent-color:#d9eabb;
+  cursor:pointer;
+}
+.plan4.active .moment-ack-label:focus-within{outline:2px solid #e7facb;outline-offset:2px}
+.plan4.active .moment-ack-label strong{display:inline;color:#efffc9;font-weight:800}
+
+/* Build 38: visible readiness and user-requested one-time recovery backup. */
+.plan4.active .moment-premium-ready{margin-top:16px;padding:15px;border:1px solid #c2d8a4;background:#34503a;border-radius:11px;color:#f3f9e9;text-align:left}
+.plan4.active .moment-premium-ready[hidden]{display:none!important}
+.plan4.active .moment-premium-ready strong{display:block;font-size:13px;font-weight:800}
+.plan4.active .moment-premium-ready p{margin:8px 0;color:#dfeede;font-size:11px;line-height:1.7}
+.plan4.active .moment-premium-ready a{display:block;padding:13px 10px;margin:11px 0 4px;border-radius:9px;text-align:center;background:#e7f4d1;color:#25402b;font-size:12px;font-weight:800;text-decoration:none}
+.plan4.active .moment-premium-ready a:hover{background:#f4ffe0}
+.plan4.active .moment-recovery .moment-code-storage-note{font-size:10px;color:#f1e3c9;line-height:1.7}
+.plan4.active #moment-recovery-download{margin-top:8px}

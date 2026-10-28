@@ -1,0 +1,21 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="referrer" content="no-referrer"><meta name="robots" content="noindex,nofollow"><title>MOMENT · 내 구매내역 출력</title><style>body{font:15px/1.8 system-ui,'Malgun Gothic',sans-serif;background:#f5f8f3;color:#283a2d;margin:0;padding:24px}main{max-width:730px;margin:auto;background:#fff;border-radius:16px;padding:35px}dt{font-weight:700;margin-top:12px}dd{margin:2px 0}button{padding:12px 20px;background:#254c31;border:0;color:white;border-radius:9px;cursor:pointer}a{color:#346145}@media print{button,.help{display:none}body{padding:0;background:white}main{padding:0}}</style></head><body><main><h1>MOMENT · 구매내역 확인서</h1><p id="status">결제사에 승인된 내 구매내역을 확인 중입니다.</p><dl id="details"></dl><p class="help">판매자 정보 및 고객지원은 <a href="../merchant.html">판매자 정보</a>, <a href="../support.html">고객지원</a>에서 확인할 수 있습니다. 이 화면은 카드사 매출전표가 아니며 결제사의 공식 영수증을 대신하지 않습니다.</p><button id="print" type="button" disabled>인쇄 또는 PDF 저장</button> <a class="help" href="../index.html#plans4">구매 화면으로 돌아가기</a></main>
+<script src="payment-config.js"></script><script src="../merchant.js"></script><script>
+(async()=>{
+ const status=document.getElementById('status'),button=document.getElementById('print'),dl=document.getElementById('details');
+ const token=localStorage.getItem('moment_live_premium_receipt_v1');
+ if(!/^[a-f0-9]{64}$/.test(token||'')){status.textContent='이 브라우저에 구매 기록이 없어요. 구매 페이지에서 권한을 먼저 복원해 주세요.';return;}
+ const api=String(window.MOMENT_PAYMENT_API||'').replace(/\/$/,'');
+ if(!/^https:\/\//.test(api)){status.textContent='결제 서버가 설정되지 않았습니다.';return;}
+ try{
+ const r=await fetch(api+'/api/purchases/me',{headers:{authorization:'Bearer '+token},cache:'no-store'});
+ const data=await r.json();
+ if(!r.ok||data.status!=='paid')throw Error('구매내역을 확인하지 못했어요. 중복 결제하지 마세요.');
+ const m=window.MOMENT_MERCHANT||{};
+ for(const [key,value] of [['주문번호',data.orderId],['상품명',data.product],['구매금액',Number(data.amount).toLocaleString('ko-KR')+'원'],['구매일시',data.paidAt?new Date(data.paidAt).toLocaleString('ko-KR'):'확인 필요'],['제공 수량','프리미엄 배경 '+data.designCount+'종 · PNG 2장'],['판매자',m.name||'판매자 정보 미확정'],['문의처',m.supportEmail||'판매자 정보 미확정']]){
+ const dt=document.createElement('dt'),dd=document.createElement('dd');dt.textContent=key;dd.textContent=String(value||'-');dl.append(dt,dd);
+ }
+ status.textContent='결제 완료 구매내역입니다. 필요하면 인쇄하거나 PDF로 저장할 수 있습니다.';
+ button.disabled=false;button.onclick=()=>window.print();
+ }catch(e){status.textContent=(e.message||'조회 중 오류')+' 다시 결제하지 말고 고객지원에 문의해 주세요.';}
+})();
+</script></body></html>
