@@ -220,3 +220,27 @@ test('Build31: Toss inquiry downtime does not revoke valid paid license or allow
    assert.equal(retry.status,200);
  }finally{globalThis.fetch=originalFetch;sqlite.close()}
 });
+
+test('Build31: unauthenticated Toss webhook independently verifies a claimed cancellation',async()=>{
+ const {env,sqlite}=makeEnvironment(),o=await newOrder(env),originalFetch=globalThis.fetch;
+ globalThis.fetch=async()=>Response.json(payment(o));
+ try{
+   const done=await parsed(await confirm(env,o));
+   assert.equal(done.status,200);
+   env.PAYMENTS_ACTIVE='false';
+   const untrustedBody={eventType:'PAYMENT_STATUS_CHANGED',data:{
+     orderId:o.orderId,paymentKey:'key_'+o.orderId,status:'CANCELED'}};
+   const unsigned=()=>new Request(API+'/api/toss-webhook',{
+     method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(untrustedBody)});
+   // A spoofed webhook does not revoke rights while Toss's authoritative status is DONE.
+   const forged=await parsed(await worker.fetch(unsigned(),env));
+   assert.equal(forged.status,200);
+   assert.equal(sqlite.prepare('SELECT status FROM orders WHERE order_id=?').get(o.orderId).status,'paid');
+   // Only the independently verified cancellation revokes the token.
+   globalThis.fetch=async()=>Response.json(payment(o,'CANCELED'));
+   const real=await parsed(await worker.fetch(unsigned(),env));
+   assert.equal(real.status,200);
+   assert.equal(sqlite.prepare('SELECT status FROM orders WHERE order_id=?').get(o.orderId).status,'refunded');
+   assert.equal((await worker.fetch(request('/api/assets/disco','GET',undefined,done.body.license),env)).status,401);
+ }finally{globalThis.fetch=originalFetch;sqlite.close()}
+});

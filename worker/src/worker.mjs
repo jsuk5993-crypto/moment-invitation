@@ -286,7 +286,9 @@ export default {
     if (!allowed || (origin && siteOrigin !== allowed && !validStagingOrigin)) return json({error:'origin_denied'},403);
     const headers=cors(validStagingOrigin?selfOrigin:allowed);
     if(req.method==='OPTIONS')return new Response(null,{status:204,headers});
-    const publicChecks=new Set(['/api/health','/api/db-health','/api/r2-health','/api/payment-setup']);
+    // Toss webhooks cannot carry the test editor's login cookie. Their payload is NOT trusted:
+    // the handler verifies the actual payment status with Toss before any change.
+    const publicChecks=new Set(['/api/health','/api/db-health','/api/r2-health','/api/payment-setup','/api/toss-webhook']);
     // Protected test checkout cannot be opted out via a dashboard variable override.
     if(!publicChecks.has(pathname)){
       if(!stageGateReady(env))return json({error:'test_access_unconfigured'},503,headers);
