@@ -1,0 +1,32 @@
+name: MOMENT Worker security tests
+
+on:
+  push:
+    branches:
+      - feat/build14-payment-test
+    paths:
+      - 'worker/**'
+      - 'site/payment/**'
+      - '.github/workflows/moment-worker-checks.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout test branch
+        uses: actions/checkout@v4
+      - name: Use Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check Worker syntax
+        working-directory: worker
+        run: npm run check
+      - name: Run payment, D1, refund, and frontend tests
+        working-directory: worker
+        run: npm test
