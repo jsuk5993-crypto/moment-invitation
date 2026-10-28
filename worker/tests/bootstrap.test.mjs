@@ -78,9 +78,9 @@ test('Build19 payment readiness exposes only key-format booleans, with checkout 
    DB:{},PREMIUM_ASSETS:{}};
  const response=await app.fetch(req('GET','/api/payment-setup'),valid);
  assert.equal(response.status,200);
- assert.deepEqual(await response.json(),{ok:true,mode:'test',clientKeyConfigured:true,
-   secretKeyConfigured:true,orderDatabaseBound:true,premiumStorageBound:true,paymentSwitchActive:false,
-   build:'26',testAccessRequired:true,testAccessSecretConfigured:false,
+ assert.deepEqual(await response.json(),{ok:true,mode:'test',clientKeyPresent:true,secretKeyPresent:true,
+   clientKeyConfigured:true,secretKeyConfigured:true,orderDatabaseBound:true,premiumStorageBound:true,paymentSwitchActive:false,
+   build:'28',testAccessRequired:true,testAccessSecretConfigured:false,
    testAccessReady:false,publicOriginConfigured:true,paymentsEnabled:false});
  const responseText=await (await app.fetch(req('GET','/api/payment-setup'),valid)).text();
  assert.equal(responseText.includes('test_ck_example'),false);
@@ -118,4 +118,23 @@ test('Build23 setup diagnostics isolate the stage password and disabled switch w
  const off=await (await app.fetch(req('GET','/api/payment-setup'),{...base,PAYMENTS_ACTIVE:'false'})).json();
  assert.equal(off.paymentSwitchActive,false);
  assert.equal(off.paymentsEnabled,false);
+});
+
+test('Build28 diagnostics distinguish missing secret bindings from wrong key format without disclosure',async()=>{
+ const base={...env,DB:{},PREMIUM_ASSETS:{}};
+ const missing=await (await app.fetch(req('GET','/api/payment-setup'),base)).json();
+ assert.equal(missing.build,'28');
+ assert.equal(missing.clientKeyPresent,false);
+ assert.equal(missing.secretKeyPresent,false);
+ assert.equal(missing.clientKeyConfigured,false);
+ assert.equal(missing.secretKeyConfigured,false);
+ const wrong={...base,TOSS_CLIENT_KEY:'test_gck_redacted',TOSS_SECRET_KEY:'test_gsk_redacted'};
+ const misconfigured=await (await app.fetch(req('GET','/api/payment-setup'),wrong)).json();
+ assert.equal(misconfigured.clientKeyPresent,true);
+ assert.equal(misconfigured.secretKeyPresent,true);
+ assert.equal(misconfigured.clientKeyConfigured,false);
+ assert.equal(misconfigured.secretKeyConfigured,false);
+ const output=JSON.stringify(misconfigured);
+ assert.equal(output.includes('test_gck_redacted'),false);
+ assert.equal(output.includes('test_gsk_redacted'),false);
 });

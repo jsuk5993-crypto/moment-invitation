@@ -115,13 +115,15 @@ async function handle(req, env, pathname) {
     // Only returns booleans. NEVER echo client/secret keys or payment credentials.
     const mode = env.PAYMENTS_MODE === 'test' ? 'test' : env.PAYMENTS_MODE === 'live' ? 'live' : 'off';
     const prefix = mode === 'test' ? 'test_' : mode === 'live' ? 'live_' : '';
-    const clientKeyConfigured = !!prefix && typeof env.TOSS_CLIENT_KEY === 'string' && env.TOSS_CLIENT_KEY.startsWith(prefix + 'ck_');
-    const secretKeyConfigured = !!prefix && typeof env.TOSS_SECRET_KEY === 'string' && env.TOSS_SECRET_KEY.startsWith(prefix + 'sk_');
-    return json({ok:true,mode,clientKeyConfigured,secretKeyConfigured,
+    const clientKeyPresent=typeof env.TOSS_CLIENT_KEY==='string' && env.TOSS_CLIENT_KEY.length>0;
+    const secretKeyPresent=typeof env.TOSS_SECRET_KEY==='string' && env.TOSS_SECRET_KEY.length>0;
+    const clientKeyConfigured = !!prefix && clientKeyPresent && env.TOSS_CLIENT_KEY.startsWith(prefix + 'ck_');
+    const secretKeyConfigured = !!prefix && secretKeyPresent && env.TOSS_SECRET_KEY.startsWith(prefix + 'sk_');
+    return json({ok:true,mode,clientKeyPresent,secretKeyPresent,clientKeyConfigured,secretKeyConfigured,
       orderDatabaseBound:!!env.DB,premiumStorageBound:!!env.PREMIUM_ASSETS,
       paymentSwitchActive:env.PAYMENTS_ACTIVE==='true',
-      // Build26: this is an immutable security rule, NOT an env variable.
-      build:'26',testAccessRequired:true,
+      // Build28: this is an immutable security rule, NOT an env variable.
+      build:'28',testAccessRequired:true,
       testAccessSecretConfigured:typeof env.TEST_ACCESS_SECRET==='string' && env.TEST_ACCESS_SECRET.length>0,
       testAccessReady:stageGateReady(env),
       publicOriginConfigured:!!env.PUBLIC_ORIGIN,

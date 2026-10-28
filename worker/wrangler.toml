@@ -1,7 +1,10 @@
-# MOMENT Build 26: mandatory staging password without an optional dashboard toggle; payments OFF.
+# MOMENT Build 28: keep dashboard variable bindings across deployments; staging payment OFF.
 name = "moment-payments-test"
 main = "src/worker.mjs"
 compatibility_date = "2026-10-20"
+# Preserve bindings added in the Cloudflare Dashboard on subsequent Wrangler deploys.
+# Note: Secret-type bindings should be preserved by Cloudflare even without this flag.
+keep_vars = true
 
 [vars]
 PAYMENTS_ACTIVE = "false"
