@@ -1,4 +1,4 @@
-# MOMENT Build 28: keep dashboard variable bindings across deployments; staging payment OFF.
+# MOMENT Build 30: enable password-protected Toss TEST checkout only; no LIVE payments.
 name = "moment-payments-test"
 main = "src/worker.mjs"
 compatibility_date = "2026-10-20"
@@ -7,9 +7,11 @@ compatibility_date = "2026-10-20"
 keep_vars = true
 
 [vars]
-PAYMENTS_ACTIVE = "false"
+PAYMENTS_ACTIVE = "true"
 PAYMENTS_MODE = "test"
 PUBLIC_ORIGIN = "https://jsuk5993-crypto.github.io"
+# TEST-ONLY: stageGateReady requires TEST_ACCESS_SECRET (24+ characters).
+# Every non-diagnostic API request requires a signed staging-session cookie.
 # Staging password protection is always ON in code. No TEST_ACCESS_REQUIRED variable.
 
 # Runtime Secrets must be added under Worker Settings > Variables and Secrets:
