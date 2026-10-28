@@ -14,3 +14,8 @@
 .plan4.active #moment-buy:hover:not(:disabled){background:#f1f8de}
 .plan4.active #moment-buy:disabled{background:#788b78;color:#e8eee5;box-shadow:none;cursor:not-allowed}
 .plan4.active #moment-pay-status{color:#d9e7d7!important;font-size:11px!important;line-height:1.65;margin:9px 0 0!important}
+
+/* Build32 private staging-only cancellation verification button. */
+.plan4.active #moment-test-cancel:not([hidden]){display:block;width:100%;margin-top:9px;background:transparent;color:#d8e6d5;border:1px solid #77917d;border-radius:10px;font-size:12px;min-height:43px;padding:9px 12px;font-weight:650;cursor:pointer}
+.plan4.active #moment-test-cancel:hover:not(:disabled){background:#405747}
+.plan4.active #moment-test-cancel:disabled{opacity:.6;cursor:not-allowed}

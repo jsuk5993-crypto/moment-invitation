@@ -31,10 +31,32 @@
   panel.innerHTML=`<div class="moment-payment-topline">PREMIUM ACCESS <span>1회 구매 · 9,900원</span></div>
     <p class="moment-payment-explain">테스트 결제 승인 후 프리미엄 디자인 6종과 워터마크 없는 PNG 2장 저장을 확인합니다.</p>
     <button type="button" id="moment-buy" disabled>결제 준비 중</button>
+    <button type="button" id="moment-test-cancel" hidden disabled>내 테스트 결제 취소 · 권한 회수 검증</button>
     <p class="moment-payment-status" id="moment-pay-status" role="status" aria-live="polite">결제 연동이 완료되면 이용할 수 있어요.</p>`;
   plan.append(panel);
   const buy=panel.querySelector('#moment-buy'),status=panel.querySelector('#moment-pay-status');
+  const cancel=panel.querySelector('#moment-test-cancel');
   const say=(s)=>status.textContent=s;
+  cancel.addEventListener('click',async()=>{
+    if(cancel.disabled || cancel.hidden)return;
+    if(!window.confirm('TEST 결제 9,900원을 취소하고 구매 권한을 회수할까요? 저장한 PNG/ZIP은 삭제되지 않지만, 이후 프리미엄 다운로드는 차단됩니다.'))return;
+    const receipt=localStorage.getItem(tokenStorageKey);
+    if(!receipt){say('테스트 결제 영수증을 찾을 수 없어요.');return;}
+    cancel.disabled=true;
+    say('토스 테스트 취소 처리 중이에요. 다시 누르지 마세요.');
+    try{
+      const response=await get('/api/test-cancel',{method:'POST',headers:{'content-type':'application/json',authorization:'Bearer '+receipt},body:'{}'});
+      const result=await response.json();
+      if(!response.ok || result.canceled!==true)
+        throw new Error(result.message||'취소 여부 확인이 지연돼요. 다시 취소하지 말고 새로고침해 주세요.');
+      localStorage.removeItem(tokenStorageKey);
+      say('토스 TEST 결제 취소 완료. 이용 권한을 다시 확인할게요.');
+      window.location.reload();
+    }catch(err){
+      // Uncertain cancellation: preserve receipt; reloading performs read-only Toss check.
+      say(err.message||'취소 상태를 확인할 수 없어요. 다시 결제하지 마세요.');
+    }
+  });
   const get=(path,options={})=>fetch(api+path,{cache:'no-store',...options});
   const available = () => api.startsWith('https://') && api.length>12;
   async function unlock(token) {
@@ -50,7 +72,9 @@
       photos[id]=blob;
     }
     await window.MOMENT_ACCESS.activate(photos);
-    buy.disabled=true;buy.textContent='프리미엄 이용 중';say('구매 권한이 확인됐어요. 이제 고화질 PNG 2장 세트를 저장할 수 있습니다.');
+    buy.disabled=true;buy.textContent='프리미엄 이용 중';
+    cancel.hidden=false;cancel.disabled=false;
+    say('구매 권한이 확인됐어요. 고화질 PNG 2장 저장이 가능해요. 아래 버튼으로 TEST 결제 취소도 검증할 수 있어요.');
     return true;
   }
   function ensureTossSDK(){return new Promise((resolve,reject)=>{if(typeof window.TossPayments==='function')return resolve();const script=document.createElement('script');script.src='https://js.tosspayments.com/v2/standard';script.onload=resolve;script.onerror=()=>reject(Error('SDK_load_failed'));document.head.appendChild(script);});}
