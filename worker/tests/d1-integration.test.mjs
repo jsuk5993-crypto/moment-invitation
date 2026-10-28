@@ -23,10 +23,13 @@ function makeEnvironment() {
   const sqlite = new DatabaseSync(':memory:');
   sqlite.exec(schema);
   const DB={
-    prepare(sql) { return { bind(...values) {return {
-      async first(){return sqlite.prepare(sql).get(...values)??null},
-      async run(){const result=sqlite.prepare(sql).run(...values);return {meta:{changes:result.changes}}}
-    }}}}
+    prepare(sql) { return {
+      async run(){const result=sqlite.prepare(sql).run();return {meta:{changes:result.changes}}},
+      bind(...values) {return {
+        async first(){return sqlite.prepare(sql).get(...values)??null},
+        async run(){const result=sqlite.prepare(sql).run(...values);return {meta:{changes:result.changes}}}
+      }}
+    }}
   };
   const env={ TEST_ACCESS_REQUIRED:'true',TEST_ACCESS_SECRET:TEST_STAGE_SECRET,PAYMENTS_ACTIVE:'true',PAYMENTS_MODE:'test',PUBLIC_ORIGIN:ORIGIN,
     TOSS_CLIENT_KEY:'test_ck_mock_123',TOSS_SECRET_KEY:'test_sk_mock_123',
