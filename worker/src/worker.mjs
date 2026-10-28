@@ -24,8 +24,8 @@ const keyPairReady = (env) => {
 const merchantFields=['SELLER_NAME','SELLER_REPRESENTATIVE','SELLER_ADDRESS','SELLER_PHONE','SELLER_EMAIL','SELLER_REGISTRATION_NUMBER','SELLER_ECOMMERCE_REPORT'];
 const merchantReady=(env)=>merchantFields.every(k=>typeof env[k]==='string'&&env[k].trim().length>=3
   && !/^(TODO|TBD|PLACEHOLDER|미입력|NONE|예시|확인 필요)/i.test(env[k].trim()))
-  && /^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(env.SELLER_EMAIL)
-  && /^\\d{3}-?\\d{2}-?\\d{5}$/.test(env.SELLER_REGISTRATION_NUMBER);
+  && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(env.SELLER_EMAIL)
+  && /^\d{3}-?\d{2}-?\d{5}$/.test(env.SELLER_REGISTRATION_NUMBER);
 const isProduction=(env)=>env.DEPLOYMENT_KIND==='public-live';
 const productionReady=(env)=>isProduction(env)&&env.PAYMENTS_MODE==='live'
   && env.LIVE_LAUNCH_APPROVED==='true' && env.LIVE_PG_APPROVED==='true'
