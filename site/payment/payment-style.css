@@ -14,3 +14,11 @@
 .plan4.active #moment-buy:hover:not(:disabled){background:#f1f8de}
 .plan4.active #moment-buy:disabled{background:#788b78;color:#e8eee5;box-shadow:none;cursor:not-allowed}
 .plan4.active #moment-pay-status{color:#d9e7d7!important;font-size:11px!important;line-height:1.65;margin:9px 0 0!important}
+
+/* Build 34: pre-checkout digital product disclosure on green premium pricing card. */
+.plan4.active .moment-purchase-info{margin:14px 0 12px;padding:14px;border:1px solid #7e957e;border-radius:10px;background:#364b3b;color:#f5faf0}
+.plan4.active .moment-purchase-info strong{display:block;font-size:12px;font-weight:800;letter-spacing:-.01em}
+.plan4.active .moment-purchase-info p{margin:7px 0 9px;color:#e5ede1;font-size:11px;line-height:1.8}
+.plan4.active .moment-purchase-info a{color:#ecf5c8;text-decoration:underline;text-underline-offset:3px;font-size:11px}
+.plan4.active .moment-ack-label{display:flex;align-items:flex-start;gap:9px;margin-top:15px;padding-top:12px;border-top:1px solid #708574;cursor:pointer;color:#f0f7e8;font-size:12px;line-height:1.65}
+.plan4.active .moment-ack-label input{flex:0 0 18px;width:18px;height:18px;margin:2px 0 0;accent-color:#d9eabb;cursor:pointer}

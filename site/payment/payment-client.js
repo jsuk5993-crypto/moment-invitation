@@ -5,6 +5,7 @@
   'use strict';
   const api = String(window.MOMENT_PAYMENT_API || '').replace(/\/$/, '');
   const tokenStorageKey='moment_premium_receipt_v1';
+  const policyVersion='2026-10-28-v1';
   const PREMIUM=['city','stars','sunset','retro','med','disco'];
   // Keep the CTA visible on the 9,900원 plan itself, not in the editor's
   // premiumActions (which is hidden until a premium theme is chosen).
@@ -30,11 +31,25 @@
   panel.className='moment-checkout';
   panel.innerHTML=`<div class="moment-payment-topline">PREMIUM ACCESS <span>1회 구매 · 9,900원</span></div>
     <p class="moment-payment-explain">테스트 결제 승인 후 프리미엄 디자인 6종과 워터마크 없는 PNG 2장 저장을 확인합니다.</p>
+    <div class="moment-purchase-info"><strong>결제·환불 사전 안내</strong>
+      <p>프리미엄 6종은 결제 승인 즉시 제공돼요. 제공이 시작된 디지털 콘텐츠는 법정 요건을 충족하는 경우 단순 변심 청약철회가 제한될 수 있습니다. 다만 제공 오류·중복 결제·설명과 다른 상품 등 법정 권리는 유지됩니다.</p>
+      <a href="payment/purchase-policy.html" target="_blank" rel="noopener noreferrer">상품 내용과 환불 기준 자세히 보기</a>
+      <label class="moment-ack-label"><input type="checkbox" id="moment-policy-ack">
+      <span>워터마크 미리보기 제공, 결제 후 즉시 콘텐츠 제공 및 청약철회 제한 가능성에 대한 안내를 확인했습니다. (필수)</span></label>
+    </div>
     <button type="button" id="moment-buy" disabled>결제 준비 중</button>
     <p class="moment-payment-status" id="moment-pay-status" role="status" aria-live="polite">결제 연동이 완료되면 이용할 수 있어요.</p>`;
   plan.append(panel);
   const buy=panel.querySelector('#moment-buy'),status=panel.querySelector('#moment-pay-status');
+  const agreement=panel.querySelector('#moment-policy-ack');
   const say=(s)=>status.textContent=s;
+  let checkoutReady=false;
+  const syncBuy=()=>{
+    buy.disabled=!checkoutReady || !agreement.checked;
+    if(checkoutReady && !agreement.checked) say('구매 안내를 확인하고 체크하면 TEST 결제를 시작할 수 있어요.');
+    else if(checkoutReady) say('토스 TEST 환경입니다. 실제 카드에 돈이 청구되지 않아요.');
+  };
+  agreement.addEventListener('change',syncBuy);
   const get=(path,options={})=>fetch(api+path,{cache:'no-store',...options});
   const available = () => api.startsWith('https://') && api.length>12;
   async function unlock(token) {
@@ -69,12 +84,15 @@
       if(!cfg.enabled){say('새 결제는 일시 중단됐지만 기존 구매자의 이용은 계속 가능합니다.');return;}
       if(!Number.isInteger(cfg.amount)||cfg.amount!==9900 || !cfg.clientKey){say('테스트 결제 설정을 확인할 수 없어요.');return;}
       try{await ensureTossSDK()}catch{say('결제 화면을 불러오지 못했습니다. 새로고침해 주세요.');return;}
-      buy.disabled=false;buy.textContent='테스트 결제 시작 · 9,900원 (실제 청구 없음)';
-      say('토스 TEST 환경입니다. 실제 카드에 돈이 청구되지 않아요.');
+      checkoutReady=true;
+      buy.textContent='테스트 결제 시작 · 9,900원 (실제 청구 없음)';
+      syncBuy();
       buy.addEventListener('click',async()=>{
+        if(!checkoutReady || !agreement.checked){syncBuy();return;}
         buy.disabled=true;say('주문을 준비하고 있어요…');
         try {
-          const response=await get('/api/orders',{method:'POST',headers:{'content-type':'application/json'},body:'{}'});
+          const response=await get('/api/orders',{method:'POST',headers:{'content-type':'application/json'},
+            body:JSON.stringify({policyAcknowledged:true,policyVersion})});
           if(!response.ok)throw new Error('주문 생성에 실패했어요.');
           const order=await response.json();
           if(order.amount!==9900 || !order.checkoutSecret || !order.orderId)throw new Error('주문 정보가 올바르지 않아요.');

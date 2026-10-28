@@ -4,6 +4,7 @@ import {handleStagingRequest,hasStageSession,stageGateReady} from './staging.mjs
  * Never deploy with real keys in source control. PAYMENTS_ACTIVE defaults OFF.
  */
 const PRICE_KRW = 9900;
+const PURCHASE_POLICY_VERSION = '2026-10-28-v1';
 const ASSETS = new Set(['city', 'stars', 'sunset', 'retro', 'med', 'disco']);
 const MAX_ORDER_AGE_MS = 60 * 60 * 1000;
 const json = (data, status = 200, headers = {}) => new Response(JSON.stringify(data), { status, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store', ...headers } });
@@ -110,7 +111,7 @@ async function readJSON(req) {
 async function handle(req, env, pathname) {
   if (pathname === '/api/health' && req.method === 'GET') {
     // Safe public bootstrap diagnostic: never exposes credentials or purchase data.
-    return json({ok:true, service:'moment-payments', build:'31', paymentsEnabled:isEnabled(env)});
+    return json({ok:true, service:'moment-payments', build:'34', paymentsEnabled:isEnabled(env)});
   }
   if (pathname === '/api/db-health' && req.method === 'GET') {
     // Public read-only diagnostic. Never returns order records or credentials.
@@ -149,7 +150,7 @@ async function handle(req, env, pathname) {
       orderDatabaseBound:!!env.DB,premiumStorageBound:!!env.PREMIUM_ASSETS,
       paymentSwitchActive:env.PAYMENTS_ACTIVE==='true',
       // Build28: this is an immutable security rule, NOT an env variable.
-      build:'31',testAccessRequired:true,
+      build:'34',testAccessRequired:true,
       testAccessSecretConfigured:typeof env.TEST_ACCESS_SECRET==='string' && env.TEST_ACCESS_SECRET.length>0,
       testAccessReady:stageGateReady(env),
       publicOriginConfigured:!!env.PUBLIC_ORIGIN,
@@ -165,12 +166,20 @@ async function handle(req, env, pathname) {
   if(!isEnabled(env) && !(readerOnly && isReaderReady(env)))
     return json({error:'disabled',message:errors.disabled},503);
   if (pathname === '/api/orders' && req.method === 'POST') {
-    // Amount is deliberately FIXED on the server, never accepted from the browser.
-    await readJSON(req);
+    // The merchant fixes price and policy. Neither comes from the browser.
+    const request=await readJSON(req);
+    if(request.policyAcknowledged!==true || request.policyVersion!==PURCHASE_POLICY_VERSION)
+      return json({error:'policy_ack_required',message:'결제 전에 프리미엄 이용 및 환불 안내를 확인해 주세요.'},400);
     const orderId='MOMENT_'+crypto.randomUUID().replaceAll('-','').slice(0,25);
     const checkoutSecret=randomSecret();
+    const acceptedAt=now();
+    // D1 already has orders; an idempotent CREATE upgrades existing test DBs automatically.
+    // The order is NOT returned for checkout unless the acknowledgement is persisted.
+    await env.DB.prepare('CREATE TABLE IF NOT EXISTS purchase_acknowledgements (order_id TEXT PRIMARY KEY, policy_version TEXT NOT NULL, acknowledged_at INTEGER NOT NULL, FOREIGN KEY (order_id) REFERENCES orders(order_id))').run();
     await env.DB.prepare('INSERT INTO orders (order_id, amount, status, checkout_hash, created_at) VALUES (?, ?, ?, ?, ?)')
-      .bind(orderId, PRICE_KRW, 'created', await sha(checkoutSecret), now()).run();
+      .bind(orderId, PRICE_KRW, 'created', await sha(checkoutSecret), acceptedAt).run();
+    await env.DB.prepare('INSERT INTO purchase_acknowledgements (order_id, policy_version, acknowledged_at) VALUES (?, ?, ?)')
+      .bind(orderId, PURCHASE_POLICY_VERSION, acceptedAt).run();
     return json({ orderId, amount: PRICE_KRW, currency: 'KRW', checkoutSecret },201);
   }
   if (pathname === '/api/confirm' && req.method === 'POST') {
